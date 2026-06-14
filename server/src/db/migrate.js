@@ -13,7 +13,25 @@ async function migrate() {
   await pool.end();
 }
 
-migrate().catch((err) => {
+migrate().catch(async (err) => {
+  // Durante o BUILD do Railway o banco ainda nao esta acessivel
+  // (postgres.railway.internal so resolve em runtime). Nesses casos
+  // nao quebramos o build: o schema sera aplicado quando a API subir
+  // (ver src/bootstrap.js). So tratamos como erro fatal se NAO for
+  // problema de conexao/DNS.
+  const networkErr =
+    err && (err.code === "ENOTFOUND" || err.code === "ECONNREFUSED" ||
+            err.code === "EAI_AGAIN" || err.code === "ETIMEDOUT");
+
+  if (networkErr) {
+    console.warn(
+      "[migrate] Banco indisponivel agora (provavelmente build). " +
+      "O schema sera aplicado quando a API iniciar. Seguindo..."
+    );
+    try { await pool.end(); } catch {}
+    process.exit(0); // NAO falha o build
+  }
+
   console.error("[migrate] Falhou:", err);
   process.exit(1);
 });

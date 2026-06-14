@@ -11,6 +11,22 @@ import { config } from "./config/env.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
+// Tenta conectar no banco com algumas tentativas antes de desistir.
+async function waitForDatabase(retries = 10, delayMs = 3000) {
+  for (let i = 1; i <= retries; i++) {
+    try {
+      await pool.query("SELECT 1");
+      return;
+    } catch (err) {
+      console.warn(
+        `[bootstrap] Banco ainda indisponivel (tentativa ${i}/${retries}): ${err.code ?? err.message}`
+      );
+      if (i === retries) throw err;
+      await new Promise((r) => setTimeout(r, delayMs));
+    }
+  }
+}
+
 const DEFAULT_PRODUCTS = [
   { name: "Heineken 600ml", price_cents: 1500, category: "cervejas" },
   { name: "Brahma 600ml", price_cents: 1200, category: "cervejas" },
@@ -25,6 +41,10 @@ const DEFAULT_PRODUCTS = [
 ];
 
 async function bootstrap() {
+  // Aguarda o banco ficar acessivel (no Railway o DNS interno pode
+  // demorar alguns segundos apos o container subir).
+  await waitForDatabase();
+
   // 1) Schema
   const sql = readFileSync(join(__dirname, "db", "schema.sql"), "utf-8");
   console.log("[bootstrap] Aplicando schema...");

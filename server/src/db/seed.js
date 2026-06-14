@@ -46,7 +46,15 @@ async function seed() {
   await pool.end();
 }
 
-seed().catch((err) => {
+seed().catch(async (err) => {
+  const networkErr =
+    err && (err.code === "ENOTFOUND" || err.code === "ECONNREFUSED" ||
+            err.code === "EAI_AGAIN" || err.code === "ETIMEDOUT");
+  if (networkErr) {
+    console.warn("[seed] Banco indisponivel agora (build). Sera feito ao iniciar a API.");
+    try { await pool.end(); } catch {}
+    process.exit(0);
+  }
   console.error("[seed] Falhou:", err);
   process.exit(1);
 });
