@@ -66,16 +66,25 @@ export type ComandaItem = {
   price_cents: number;
   qty: number;
 };
+export type Payment = {
+  id: string;
+  amount_cents: number;
+  payment_method: string;
+  created_at: string;
+};
 export type Comanda = {
   id: string;
   customer: string;
-  status: "open" | "paid" | "canceled";
+  status: "open" | "partial" | "paid" | "canceled";
   payment_method?: string;
   created_at: string;
   paid_at?: string;
   total_cents: number;
+  paid_cents?: number;
+  remaining_cents?: number;
   item_count?: number;
   items?: ComandaItem[];
+  payments?: Payment[];
 };
 export type Summary = {
   open_count: number;
@@ -119,10 +128,12 @@ export const comandasApi = {
     }),
   removeItem: (id: string, itemId: string) =>
     api<Comanda>(`/api/comandas/${id}/items/${itemId}`, { method: "DELETE" }),
-  pay: (id: string, payment_method: string) =>
+  pay: (id: string, payment_method: string, amount_cents?: number) =>
     api<Comanda>(`/api/comandas/${id}/pay`, {
       method: "POST",
-      body: JSON.stringify({ payment_method }),
+      body: JSON.stringify(
+        amount_cents != null ? { payment_method, amount_cents } : { payment_method },
+      ),
     }),
   remove: (id: string) => api<void>(`/api/comandas/${id}`, { method: "DELETE" }),
   summary: () => api<Summary>("/api/comandas/summary"),

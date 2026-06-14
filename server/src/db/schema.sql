@@ -41,7 +41,7 @@ CREATE TABLE IF NOT EXISTS comandas (
   id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   customer     TEXT          NOT NULL,
   status       TEXT          NOT NULL DEFAULT 'open'
-               CHECK (status IN ('open', 'paid', 'canceled')),
+               CHECK (status IN ('open', 'partial', 'paid', 'canceled')),
   opened_by    UUID          REFERENCES users(id) ON DELETE SET NULL,
   paid_by      UUID          REFERENCES users(id) ON DELETE SET NULL,
   payment_method TEXT,
@@ -69,6 +69,20 @@ CREATE TABLE IF NOT EXISTS comanda_items (
 CREATE INDEX IF NOT EXISTS idx_items_comanda ON comanda_items(comanda_id);
 CREATE UNIQUE INDEX IF NOT EXISTS uq_item_comanda_product
   ON comanda_items(comanda_id, product_id);
+
+-- ---------------------------------------------------------------------
+-- PAGAMENTOS (suporta pagamento parcial: varios pagamentos por comanda)
+-- ---------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS payments (
+  id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  comanda_id     UUID        NOT NULL REFERENCES comandas(id) ON DELETE CASCADE,
+  amount_cents   INTEGER     NOT NULL CHECK (amount_cents > 0),
+  payment_method TEXT        NOT NULL DEFAULT 'dinheiro',
+  paid_by        UUID        REFERENCES users(id) ON DELETE SET NULL,
+  created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_payments_comanda ON payments(comanda_id);
 
 -- ---------------------------------------------------------------------
 -- Trigger para manter updated_at sempre atualizado

@@ -4,6 +4,30 @@ SaaS de comandas com **back-end profissional** (Node.js + Express + PostgreSQL)
 e **front-end** (React + TanStack Start). Login com papéis: **admin**, **caixa**
 e **garçom**.
 
+## Controle de pagamentos e cores
+
+O sistema foi feito para você **nunca mais perder de vista quem deve**:
+
+- **Seção "Devendo Agora"** no topo: lista quem está com saldo em aberto,
+  ordenada da comanda mais antiga para a mais nova, mostrando quanto falta
+  e há quanto tempo está aberta.
+- **Cores por situação** (bate o olho e entende):
+
+  | Cor | Situação |
+  |---|---|
+  | Verde | Comanda quitada (paga) |
+  | Amarelo | Pagamento parcial (pagou parte, ainda deve) |
+  | Vermelho | Esquecida — aberta há mais de 1 hora |
+  | Normal | Aberta há pouco tempo |
+
+- **Aviso de comanda esquecida**: quando passa de 1 hora aberta, aparece um
+  aviso vermelho no topo da tela.
+- **Pagamento parcial**: o cliente pode pagar uma parte agora (campo "Valor
+  parcial") e o resto depois. O sistema guarda cada pagamento e mostra sempre
+  o **saldo que falta**. Ao zerar o saldo, a comanda fica verde (quitada). O
+  botão **"Quitar tudo"** recebe o saldo restante de uma vez.
+- **Painel do dia**: total a receber (o que está na rua) e total recebido hoje.
+
 ```
 atacadao-cervejaria/
 ├── src/                 # FRONT-END (React / TanStack Start)

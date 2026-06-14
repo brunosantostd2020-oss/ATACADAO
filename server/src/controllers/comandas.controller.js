@@ -13,6 +13,7 @@ async function loadComanda(id, client = null) {
   );
   if (!rows[0]) return null;
   const comanda = rows[0];
+
   const items = await q(
     `SELECT id, product_id, name, price_cents, qty
        FROM comanda_items WHERE comanda_id = $1 ORDER BY created_at`,
@@ -20,6 +21,16 @@ async function loadComanda(id, client = null) {
   );
   comanda.items = items.rows;
   comanda.total_cents = items.rows.reduce((s, it) => s + it.price_cents * it.qty, 0);
+
+  const pays = await q(
+    `SELECT id, amount_cents, payment_method, created_at
+       FROM payments WHERE comanda_id = $1 ORDER BY created_at`,
+    [id]
+  );
+  comanda.payments = pays.rows;
+  comanda.paid_cents = pays.rows.reduce((s, p) => s + p.amount_cents, 0);
+  comanda.remaining_cents = Math.max(0, comanda.total_cents - comanda.paid_cents);
+
   return comanda;
 }
 
@@ -39,6 +50,8 @@ const qtySchema = z.object({
 
 const paySchema = z.object({
   payment_method: z.enum(["dinheiro", "pix", "cartao", "outro"]).default("dinheiro"),
+  // amount_cents opcional: se ausente, paga o saldo restante (quitacao total)
+  amount_cents: z.number().int().positive().optional(),
 });
 
 // ---------- handlers ----------
@@ -50,12 +63,20 @@ export const listComandas = asyncHandler(async (req, res) => {
 
   const { rows } = await query(
     `SELECT c.id, c.customer, c.status, c.payment_method, c.created_at, c.paid_at,
-            COALESCE(SUM(i.price_cents * i.qty), 0)::int AS total_cents,
-            COALESCE(COUNT(i.id), 0)::int AS item_count
+            COALESCE(i.total, 0)::int        AS total_cents,
+            COALESCE(i.item_count, 0)::int   AS item_count,
+            COALESCE(p.paid, 0)::int         AS paid_cents,
+            GREATEST(COALESCE(i.total, 0) - COALESCE(p.paid, 0), 0)::int AS remaining_cents
        FROM comandas c
-       LEFT JOIN comanda_items i ON i.comanda_id = c.id
+       LEFT JOIN (
+         SELECT comanda_id, SUM(price_cents * qty) AS total, COUNT(*) AS item_count
+           FROM comanda_items GROUP BY comanda_id
+       ) i ON i.comanda_id = c.id
+       LEFT JOIN (
+         SELECT comanda_id, SUM(amount_cents) AS paid
+           FROM payments GROUP BY comanda_id
+       ) p ON p.comanda_id = c.id
       ${where}
-      GROUP BY c.id
       ORDER BY c.created_at DESC`,
     params
   );
@@ -155,7 +176,7 @@ export const removeItem = asyncHandler(async (req, res) => {
 });
 
 export const payComanda = asyncHandler(async (req, res) => {
-  const { payment_method } = paySchema.parse(req.body);
+  const { payment_method, amount_cents } = paySchema.parse(req.body);
   const comandaId = req.params.id;
 
   const comanda = await withTransaction(async (client) => {
@@ -164,20 +185,53 @@ export const payComanda = asyncHandler(async (req, res) => {
       [comandaId]
     );
     if (!rows[0]) throw new ApiError(404, "Comanda nao encontrada.");
-    if (rows[0].status === "paid") throw new ApiError(400, "Comanda ja foi paga.");
+    if (rows[0].status === "paid") throw new ApiError(400, "Comanda ja foi quitada.");
 
-    const items = await client.query(
-      `SELECT COUNT(*)::int AS n FROM comanda_items WHERE comanda_id = $1`,
+    // total dos itens
+    const tot = await client.query(
+      `SELECT COALESCE(SUM(price_cents * qty), 0)::int AS total,
+              COUNT(*)::int AS n
+         FROM comanda_items WHERE comanda_id = $1`,
       [comandaId]
     );
-    if (items.rows[0].n === 0) throw new ApiError(400, "Comanda sem itens.");
+    if (tot.rows[0].n === 0) throw new ApiError(400, "Comanda sem itens.");
+    const total = tot.rows[0].total;
+
+    // ja pago
+    const pd = await client.query(
+      `SELECT COALESCE(SUM(amount_cents), 0)::int AS paid
+         FROM payments WHERE comanda_id = $1`,
+      [comandaId]
+    );
+    const alreadyPaid = pd.rows[0].paid;
+    const remaining = total - alreadyPaid;
+    if (remaining <= 0) throw new ApiError(400, "Comanda ja esta quitada.");
+
+    // valor deste pagamento: informado (parcial) ou o saldo todo (quitacao)
+    const pay = amount_cents ?? remaining;
+    if (pay > remaining) {
+      throw new ApiError(400, `Valor maior que o saldo devedor (${remaining} centavos).`);
+    }
+
+    await client.query(
+      `INSERT INTO payments (comanda_id, amount_cents, payment_method, paid_by)
+         VALUES ($1, $2, $3, $4)`,
+      [comandaId, pay, payment_method, req.user.id]
+    );
+
+    const newPaid = alreadyPaid + pay;
+    const quitada = newPaid >= total;
 
     await client.query(
       `UPDATE comandas
-          SET status = 'paid', paid_at = now(), paid_by = $1, payment_method = $2
-        WHERE id = $3`,
-      [req.user.id, payment_method, comandaId]
+          SET status = $1,
+              payment_method = $2,
+              paid_at = CASE WHEN $3 THEN now() ELSE paid_at END,
+              paid_by = CASE WHEN $3 THEN $4 ELSE paid_by END
+        WHERE id = $5`,
+      [quitada ? "paid" : "partial", payment_method, quitada, req.user.id, comandaId]
     );
+
     return loadComanda(comandaId, client);
   });
 
@@ -192,21 +246,31 @@ export const deleteComanda = asyncHandler(async (req, res) => {
 
 // ---------- relatorio simples ----------
 export const summary = asyncHandler(async (_req, res) => {
-  const { rows: open } = await query(
-    `SELECT COUNT(DISTINCT c.id)::int AS count,
-            COALESCE(SUM(i.price_cents * i.qty), 0)::int AS total_cents
-       FROM comandas c LEFT JOIN comanda_items i ON i.comanda_id = c.id
-      WHERE c.status = 'open'`
+  // Comandas que ainda devem (abertas + parciais): saldo = itens - pagamentos
+  const { rows: owing } = await query(
+    `SELECT
+       COUNT(*)::int AS count,
+       COALESCE(SUM(GREATEST(t.total - t.paid, 0)), 0)::int AS remaining_cents
+     FROM (
+       SELECT c.id,
+              COALESCE((SELECT SUM(price_cents*qty) FROM comanda_items WHERE comanda_id=c.id),0) AS total,
+              COALESCE((SELECT SUM(amount_cents)   FROM payments      WHERE comanda_id=c.id),0) AS paid
+         FROM comandas c
+        WHERE c.status IN ('open','partial')
+     ) t`
   );
+
+  // Recebido hoje (qualquer pagamento registrado hoje)
   const { rows: today } = await query(
-    `SELECT COALESCE(SUM(i.price_cents * i.qty), 0)::int AS total_cents,
-            COUNT(DISTINCT c.id)::int AS count
-       FROM comandas c JOIN comanda_items i ON i.comanda_id = c.id
-      WHERE c.status = 'paid' AND c.paid_at::date = now()::date`
+    `SELECT COALESCE(SUM(amount_cents), 0)::int AS total_cents,
+            COUNT(*)::int AS count
+       FROM payments
+      WHERE created_at::date = now()::date`
   );
+
   res.json({
-    open_count: open[0].count,
-    open_total_cents: open[0].total_cents,
+    open_count: owing[0].count,
+    open_total_cents: owing[0].remaining_cents,
     paid_today_count: today[0].count,
     paid_today_cents: today[0].total_cents,
   });
