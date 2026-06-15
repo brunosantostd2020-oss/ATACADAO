@@ -15,7 +15,7 @@ async function loadComanda(id, client = null) {
   const comanda = rows[0];
 
   const items = await q(
-    `SELECT id, product_id, name, price_cents, qty, notes
+    `SELECT id, product_id, name, price_cents, qty, notes, created_at
        FROM comanda_items WHERE comanda_id = $1 ORDER BY created_at`,
     [id]
   );

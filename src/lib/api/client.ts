@@ -81,6 +81,7 @@ export type ComandaItem = {
   price_cents: number;
   qty: number;
   notes?: string;
+  created_at?: string;
 };
 export type Payment = {
   id: string;

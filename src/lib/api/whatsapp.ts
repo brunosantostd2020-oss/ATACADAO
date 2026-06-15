@@ -28,34 +28,48 @@ export function whatsappCobrancaUrl(comanda: Comanda): string {
     minute: "2-digit",
   });
 
-  const itens = (comanda.items ?? [])
-    .map((i) => `  • ${i.qty}x ${i.name}${i.notes ? ` (${i.notes})` : ""}`)
-    .join("\n");
-
   const totalDevido = comanda.remaining_cents ?? comanda.total_cents;
-  const parcial = (comanda.paid_cents ?? 0) > 0
-    ? `\nValor já pago: ${fmt(comanda.paid_cents ?? 0)}`
-    : "";
 
-  const msg = [
-    `${g}, Sr./Sra. *${comanda.customer}*!`,
-    ``,
-    `Passando para informar que consta em nosso sistema uma pendência financeira referente ao consumo realizado no *Atacadão Cervejaria*.`,
-    ``,
-    `📋 *Detalhes da comanda:*`,
-    `Data: ${data} às ${hora}`,
-    itens ? `Itens consumidos:\n${itens}` : "",
-    ``,
-    `💰 *Valor total: ${fmt(comanda.total_cents)}*${parcial}`,
-    `🔴 *Valor em aberto: ${fmt(totalDevido)}*`,
-    ``,
-    `Por favor, entre em contato para realizar o pagamento ou compareça ao estabelecimento.`,
-    ``,
-    `Agradecemos a compreensão!`,
-    `*Atacadão Cervejaria*`,
-  ]
-    .filter((l) => l !== "")
+  const itensList = (comanda.items ?? [])
+    .map((i) => {
+      const dataItem = i.created_at
+        ? new Date(i.created_at).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" })
+        : null;
+      const horaItem = i.created_at
+        ? new Date(i.created_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })
+        : null;
+      const quando = dataItem ? ` (${dataItem} às ${horaItem})` : "";
+      return `- ${i.qty}x ${i.name}${i.notes ? ` (${i.notes})` : ""}${quando}`;
+    })
     .join("\n");
+
+  const linhas: string[] = [];
+
+  linhas.push(`${g}, ${comanda.customer}.`);
+  linhas.push(``);
+  linhas.push(`Entramos em contato para informar que identificamos um valor em aberto referente ao seu consumo no Atacadão Cervejaria, realizado em ${data} às ${hora}.`);
+  linhas.push(``);
+
+  if (itensList) {
+    linhas.push(`Itens consumidos:`);
+    linhas.push(itensList);
+    linhas.push(``);
+  }
+
+  linhas.push(`Total da comanda: ${fmt(comanda.total_cents)}`);
+
+  if ((comanda.paid_cents ?? 0) > 0) {
+    linhas.push(`Valor já pago: ${fmt(comanda.paid_cents ?? 0)}`);
+  }
+
+  linhas.push(`Valor em aberto: ${fmt(totalDevido)}`);
+  linhas.push(``);
+  linhas.push(`Pedimos gentileza em regularizar assim que possível, seja pelo contato conosco ou comparecendo ao estabelecimento.`);
+  linhas.push(``);
+  linhas.push(`Agradecemos a compreensão e ficamos à disposição.`);
+  linhas.push(`Atacadão Cervejaria`);
+
+  const msg = linhas.join("\n");
 
   // Remove caracteres inválidos do telefone (só dígitos)
   const phone = (comanda.phone ?? "").replace(/\D/g, "");

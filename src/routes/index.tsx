@@ -26,7 +26,7 @@ import {
 import {
   Beer, Plus, Trash2, CheckCircle2, Receipt, X, LogOut, Loader2,
   AlertTriangle, Clock, Printer, Package, TrendingUp, Phone,
-  MessageCircle, Users,
+  MessageCircle, Users, UtensilsCrossed,
 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { toast } from "sonner";
@@ -317,33 +317,36 @@ function Dashboard() {
   return (
     <div className="min-h-screen bg-background text-foreground">
       <header className="border-b border-border bg-card/50 backdrop-blur sticky top-0 z-30">
-        <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="size-10 rounded-lg bg-primary text-primary-foreground grid place-items-center">
-              <Beer className="size-5" />
+        <div className="max-w-7xl mx-auto px-3 py-3 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="size-8 sm:size-10 rounded-lg bg-primary text-primary-foreground grid place-items-center shrink-0">
+              <Beer className="size-4 sm:size-5" />
             </div>
-            <div>
-              <h1 className="text-lg font-bold tracking-tight leading-none">ATACADÃO CERVEJARIA</h1>
-              <p className="text-xs text-muted-foreground mt-1">{user?.name} · {user?.role}</p>
+            <div className="min-w-0">
+              <h1 className="text-sm sm:text-lg font-bold tracking-tight leading-none truncate">
+                <span className="hidden sm:inline">ATACADÃO CERVEJARIA</span>
+                <span className="sm:hidden">ATACADÃO</span>
+              </h1>
+              <p className="text-xs text-muted-foreground mt-0.5 truncate">{user?.name} · {user?.role}</p>
             </div>
           </div>
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1">
             {canManage && (
               <Link to="/clientes">
                 <Button variant="ghost" size="sm" title="Clientes" className="hidden sm:flex">
-                  <Users className="size-4 sm:mr-1" /><span className="hidden sm:inline">Clientes</span>
+                  <Users className="size-4 mr-1" /><span>Clientes</span>
                 </Button>
-                <Button variant="ghost" size="icon" title="Clientes" className="sm:hidden">
+                <Button variant="ghost" size="icon" className="size-8 sm:hidden" title="Clientes">
                   <Users className="size-4" />
                 </Button>
               </Link>
             )}
             {canManage && (
               <Link to="/estoque">
-                <Button variant="ghost" size="sm" title="Controle de Estoque" className="hidden sm:flex">
-                  <Package className="size-4 sm:mr-1" /><span className="hidden sm:inline">Estoque</span>
+                <Button variant="ghost" size="sm" title="Estoque" className="hidden sm:flex">
+                  <Package className="size-4 mr-1" /><span>Estoque</span>
                 </Button>
-                <Button variant="ghost" size="icon" title="Estoque" className="sm:hidden">
+                <Button variant="ghost" size="icon" className="size-8 sm:hidden" title="Estoque">
                   <Package className="size-4" />
                 </Button>
               </Link>
@@ -351,9 +354,9 @@ function Dashboard() {
             {canManage && (
               <Link to="/relatorios">
                 <Button variant="ghost" size="sm" title="Relatórios" className="hidden sm:flex">
-                  <TrendingUp className="size-4 sm:mr-1" /><span className="hidden sm:inline">Relatórios</span>
+                  <TrendingUp className="size-4 mr-1" /><span>Relatórios</span>
                 </Button>
-                <Button variant="ghost" size="icon" title="Relatórios" className="sm:hidden">
+                <Button variant="ghost" size="icon" className="size-8 sm:hidden" title="Relatórios">
                   <TrendingUp className="size-4" />
                 </Button>
               </Link>
@@ -361,7 +364,14 @@ function Dashboard() {
             {canManage && (
               <Dialog open={productsOpen} onOpenChange={setProductsOpen}>
                 <DialogTrigger asChild>
-                  <Button variant="secondary" size="sm">Cardápio</Button>
+                  <Button variant="secondary" size="sm" className="hidden sm:flex">
+                    <UtensilsCrossed className="size-4 mr-1" /><span>Cardápio</span>
+                  </Button>
+                </DialogTrigger>
+                <DialogTrigger asChild>
+                  <Button variant="secondary" size="icon" className="size-8 sm:hidden" title="Cardápio">
+                    <UtensilsCrossed className="size-4" />
+                  </Button>
                 </DialogTrigger>
                 <DialogContent className="max-w-lg w-[95vw] max-h-[90vh] overflow-hidden flex flex-col">
                   <DialogHeader><DialogTitle>Gerenciar Cardápio</DialogTitle></DialogHeader>
