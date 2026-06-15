@@ -40,7 +40,11 @@ const DEFAULT_PRODUCTS = [
   { name: "Agua Mineral", price_cents: 400, category: "bebidas" },
 ];
 
-async function bootstrap() {
+/**
+ * Prepara o banco: schema, login padrao e produtos. NAO sobe servidor.
+ * Idempotente — seguro rodar a cada deploy. Usado pelo server combinado.
+ */
+export async function runBootstrap() {
   // Aguarda o banco ficar acessivel (no Railway o DNS interno pode
   // demorar alguns segundos apos o container subir).
   await waitForDatabase();
@@ -76,12 +80,17 @@ async function bootstrap() {
     console.log(`[bootstrap] ${DEFAULT_PRODUCTS.length} produtos inseridos.`);
   }
 
-  console.log("[bootstrap] Banco pronto. Subindo servidor...");
-  // 4) Sobe o servidor (NAO fecha o pool — o app continua usando)
-  await import("./index.js");
+  console.log("[bootstrap] Banco pronto.");
 }
 
-bootstrap().catch((err) => {
-  console.error("[bootstrap] Falhou:", err);
-  process.exit(1);
-});
+// Modo standalone: se chamado direto (node src/bootstrap.js), prepara o
+// banco e sobe a API sozinha (usado no deploy SO da API, se um dia separar).
+const isMain = process.argv[1] && process.argv[1].endsWith("bootstrap.js");
+if (isMain) {
+  runBootstrap()
+    .then(() => import("./index.js"))
+    .catch((err) => {
+      console.error("[bootstrap] Falhou:", err);
+      process.exit(1);
+    });
+}

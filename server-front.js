@@ -1,14 +1,17 @@
-// Servidor de producao do front-end para o Railway.
-// O build do TanStack Start gera um handler no padrao Web (fetch);
-// aqui o adaptamos para um servidor HTTP do Node, servindo tambem os
-// arquivos estaticos do cliente (dist/client). Escuta na porta do
-// Railway (process.env.PORT).
+// Servidor COMBINADO de producao (Railway): roda a API e o site no mesmo
+// processo e na mesma porta. As rotas /api/* e /health vao para o back-end
+// (Express); todo o resto serve os arquivos do site e a renderizacao SSR.
+// Assim nao e preciso configurar VITE_API_URL nem lidar com CORS.
 
 import http from "node:http";
+import express from "express";
 import { readFile, stat } from "node:fs/promises";
-import { join, extname, normalize } from "node:path";
+import { join, extname, normalize, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { dirname } from "node:path";
+
+// --- Back-end (API) ---
+import { createApiRouter, applyBaseMiddleware, errorHandler } from "./server/src/index.js";
+import { runBootstrap } from "./server/src/bootstrap.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const CLIENT_DIR = join(__dirname, "dist", "client");
@@ -33,10 +36,24 @@ const MIME = {
   ".map": "application/json; charset=utf-8",
 };
 
-// Carrega o handler SSR do build
+// 1) Prepara o banco (schema + login padrao). Nao derruba o site se falhar.
+try {
+  await runBootstrap();
+} catch (err) {
+  console.error("[combined] Bootstrap do banco falhou (a API pode nao funcionar):", err.message);
+}
+
+// 2) Monta a API como um app Express
+const apiApp = express();
+applyBaseMiddleware(apiApp);
+apiApp.use(createApiRouter());
+apiApp.use((_req, res) => res.status(404).json({ error: "Rota nao encontrada." }));
+apiApp.use(errorHandler);
+
+// 3) Carrega o handler SSR do site
 const { default: ssr } = await import("./dist/server/server.js");
 
-// Converte IncomingMessage (Node) -> Request (Web)
+// IncomingMessage (Node) -> Request (Web)
 function toWebRequest(req) {
   const url = `http://${req.headers.host ?? "localhost"}${req.url}`;
   const headers = new Headers();
@@ -54,9 +71,7 @@ function toWebRequest(req) {
   });
 }
 
-// Tenta servir um arquivo estatico do client. Retorna true se serviu.
 async function tryStatic(req, res) {
-  // remove querystring e normaliza para evitar path traversal
   const rawPath = decodeURIComponent((req.url ?? "/").split("?")[0]);
   if (rawPath === "/") return false;
   const safePath = normalize(rawPath).replace(/^(\.\.[/\\])+/, "");
@@ -80,23 +95,28 @@ async function tryStatic(req, res) {
 
 const server = http.createServer(async (req, res) => {
   try {
-    // 1) arquivos estaticos (JS, CSS, imagens...)
+    const path = (req.url ?? "/").split("?")[0];
+
+    // 1) API e healthcheck -> Express
+    if (path === "/health" || path.startsWith("/api/")) {
+      return apiApp(req, res);
+    }
+
+    // 2) arquivos estaticos (JS, CSS, imagens)
     if (await tryStatic(req, res)) return;
 
-    // 2) SSR (renderiza as paginas)
+    // 3) SSR (paginas)
     const webReq = toWebRequest(req);
     const webRes = await ssr.fetch(webReq, {}, {});
-
     res.statusCode = webRes.status;
     webRes.headers.forEach((value, key) => res.setHeader(key, value));
     if (webRes.body) {
-      const buf = Buffer.from(await webRes.arrayBuffer());
-      res.end(buf);
+      res.end(Buffer.from(await webRes.arrayBuffer()));
     } else {
       res.end();
     }
   } catch (err) {
-    console.error("[front-server] erro:", err);
+    console.error("[combined] erro:", err);
     res.statusCode = 500;
     res.setHeader("content-type", "text/html; charset=utf-8");
     res.end("<h1>Erro ao carregar a pagina</h1>");
@@ -104,5 +124,5 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(PORT, "0.0.0.0", () => {
-  console.log(`[front-server] Site rodando na porta ${PORT}`);
+  console.log(`[combined] Site + API rodando na porta ${PORT}`);
 });

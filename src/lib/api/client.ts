@@ -1,20 +1,9 @@
 // Cliente HTTP para a API do back-end (Express + PostgreSQL).
-// A URL base vem de VITE_API_URL; em producao usa a variavel VITE_API_URL
-// configurada no Railway. Se nao estiver definida, tenta usar a propria
-// origem da pagina (util quando front e back rodam no mesmo servico).
+// A URL base vem de VITE_API_URL; em dev cai no localhost:3333.
 
-function resolveApiUrl(): string {
-  const fromEnv = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, "");
-  if (fromEnv) return fromEnv;
-  // Em producao sem VITE_API_URL: usa a origem atual (ex: https://meu-app.up.railway.app)
-  if (typeof window !== "undefined" && window.location.hostname !== "localhost") {
-    return window.location.origin;
-  }
-  // Desenvolvimento local
-  return "http://localhost:3333";
-}
-
-const API_URL = resolveApiUrl();
+const API_URL =
+  (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, "") ??
+  "";
 
 const TOKEN_KEY = "atacadao-token";
 
