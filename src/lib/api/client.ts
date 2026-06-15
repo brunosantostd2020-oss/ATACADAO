@@ -51,7 +51,7 @@ export async function api<T = unknown>(
 
 // ---------- Tipos ----------
 export type Role = "admin" | "caixa" | "garcom";
-export type User = { id: string; name: string; email: string; role: Role };
+export type User = { id: string; name: string; username: string; role: Role };
 export type Product = {
   id: string;
   name: string;
@@ -95,10 +95,10 @@ export type Summary = {
 
 // ---------- Endpoints ----------
 export const authApi = {
-  login: (email: string, password: string) =>
+  login: (username: string, password: string) =>
     api<{ token: string; user: User }>("/api/auth/login", {
       method: "POST",
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ username, password }),
     }),
   me: () => api<User>("/api/auth/me"),
 };

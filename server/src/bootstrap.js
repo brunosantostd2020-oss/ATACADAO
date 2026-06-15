@@ -50,13 +50,13 @@ async function bootstrap() {
   console.log("[bootstrap] Aplicando schema...");
   await pool.query(sql);
 
-  // 2) Admin padrao
+  // 2) Login padrao
   const hash = await bcrypt.hash(config.seedAdminPassword, 10);
   await pool.query(
-    `INSERT INTO users (name, email, password_hash, role)
+    `INSERT INTO users (name, username, password_hash, role)
        VALUES ($1, $2, $3, 'admin')
-     ON CONFLICT (email) DO NOTHING`,
-    [config.seedAdminName, config.seedAdminEmail.toLowerCase(), hash]
+     ON CONFLICT (username) DO NOTHING`,
+    [config.seedAdminName, config.seedAdminUser.toLowerCase(), hash]
   );
 
   // 3) Produtos padrao (so se a tabela estiver vazia)

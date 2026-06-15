@@ -10,7 +10,7 @@ import { authApi, getToken, setToken, type User } from "./client";
 type AuthState = {
   user: User | null;
   loading: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (username: string, password: string) => Promise<void>;
   logout: () => void;
 };
 
@@ -33,8 +33,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .finally(() => setLoading(false));
   }, []);
 
-  const login = async (email: string, password: string) => {
-    const { token, user } = await authApi.login(email, password);
+  const login = async (username: string, password: string) => {
+    const { token, user } = await authApi.login(username, password);
     setToken(token);
     setUser(user);
   };

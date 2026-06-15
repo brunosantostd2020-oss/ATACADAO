@@ -8,7 +8,7 @@ import { useAuth } from "@/lib/api/auth";
 
 export function LoginScreen() {
   const { login } = useAuth();
-  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -17,7 +17,7 @@ export function LoginScreen() {
     setError("");
     setLoading(true);
     try {
-      await login(email.trim(), password);
+      await login(username.trim(), password);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Falha no login.");
     } finally {
@@ -35,7 +35,7 @@ export function LoginScreen() {
           </div>
           <div>
             <div className="font-bold tracking-tight leading-none">
-              ATACADÃO CERVEJARIA
+              ATACADAO CERVEJARIA
             </div>
             <div className="text-xs text-muted-foreground mt-1">
               Sistema de Comandas
@@ -47,43 +47,43 @@ export function LoginScreen() {
             Controle total das suas comandas.
           </h2>
           <p className="text-muted-foreground max-w-sm">
-            Abra comandas, lance produtos e dê baixa nos pagamentos com seu time
-            — tudo sincronizado em tempo real.
+            Abra comandas, lance produtos e de baixa nos pagamentos com seu time
+            - tudo sincronizado em tempo real.
           </p>
         </div>
         <div className="text-xs text-muted-foreground">
-          Atacadão Cervejaria · acesso restrito a colaboradores
+          Atacadao Cervejaria - acesso restrito
         </div>
       </div>
 
-      {/* Formulário */}
+      {/* Formulario */}
       <div className="flex items-center justify-center p-6">
         <Card className="w-full max-w-sm p-6 space-y-5">
           <div className="lg:hidden flex items-center gap-3 mb-2">
             <div className="size-10 rounded-lg bg-primary text-primary-foreground grid place-items-center">
               <Beer className="size-5" />
             </div>
-            <div className="font-bold tracking-tight">ATACADÃO CERVEJARIA</div>
+            <div className="font-bold tracking-tight">ATACADAO CERVEJARIA</div>
           </div>
 
           <div>
             <h1 className="text-xl font-bold tracking-tight">Entrar</h1>
             <p className="text-sm text-muted-foreground mt-1">
-              Use seu e-mail e senha de colaborador.
+              Digite seu usuario e senha.
             </p>
           </div>
 
           <div className="space-y-3">
             <div className="space-y-1.5">
-              <Label htmlFor="email">E-mail</Label>
+              <Label htmlFor="username">Usuario</Label>
               <Input
-                id="email"
-                type="email"
+                id="username"
+                type="text"
                 autoComplete="username"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && submit()}
-                placeholder="voce@atacadao.local"
+                placeholder="atacadao"
               />
             </div>
             <div className="space-y-1.5">
@@ -95,7 +95,7 @@ export function LoginScreen() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && submit()}
-                placeholder="••••••••"
+                placeholder="********"
               />
             </div>
           </div>
@@ -110,7 +110,7 @@ export function LoginScreen() {
             className="w-full"
             size="lg"
             onClick={submit}
-            disabled={loading || !email || !password}
+            disabled={loading || !username || !password}
           >
             {loading ? "Entrando..." : "Entrar"}
           </Button>

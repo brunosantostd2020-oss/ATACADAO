@@ -5,22 +5,22 @@ import { ApiError, asyncHandler } from "../utils/asyncHandler.js";
 
 const createSchema = z.object({
   name: z.string().min(1, "Nome obrigatorio."),
-  email: z.string().email("E-mail invalido."),
-  password: z.string().min(6, "Senha deve ter ao menos 6 caracteres."),
+  username: z.string().min(1, "Usuario obrigatorio."),
+  password: z.string().min(4, "Senha deve ter ao menos 4 caracteres."),
   role: z.enum(["admin", "caixa", "garcom"]).default("garcom"),
 });
 
 const updateSchema = z.object({
   name: z.string().min(1).optional(),
-  email: z.string().email().optional(),
-  password: z.string().min(6).optional(),
+  username: z.string().min(1).optional(),
+  password: z.string().min(4).optional(),
   role: z.enum(["admin", "caixa", "garcom"]).optional(),
   active: z.boolean().optional(),
 });
 
 export const listUsers = asyncHandler(async (_req, res) => {
   const { rows } = await query(
-    `SELECT id, name, email, role, active, created_at
+    `SELECT id, name, username, role, active, created_at
        FROM users ORDER BY created_at DESC`
   );
   res.json(rows);
@@ -30,10 +30,10 @@ export const createUser = asyncHandler(async (req, res) => {
   const data = createSchema.parse(req.body);
   const hash = await bcrypt.hash(data.password, 10);
   const { rows } = await query(
-    `INSERT INTO users (name, email, password_hash, role)
+    `INSERT INTO users (name, username, password_hash, role)
        VALUES ($1, $2, $3, $4)
-       RETURNING id, name, email, role, active, created_at`,
-    [data.name, data.email.toLowerCase(), hash, data.role]
+       RETURNING id, name, username, role, active, created_at`,
+    [data.name, data.username.toLowerCase(), hash, data.role]
   );
   res.status(201).json(rows[0]);
 });
@@ -45,7 +45,7 @@ export const updateUser = asyncHandler(async (req, res) => {
   let i = 1;
 
   if (data.name !== undefined) { fields.push(`name = $${i++}`); values.push(data.name); }
-  if (data.email !== undefined) { fields.push(`email = $${i++}`); values.push(data.email.toLowerCase()); }
+  if (data.username !== undefined) { fields.push(`username = $${i++}`); values.push(data.username.toLowerCase()); }
   if (data.role !== undefined) { fields.push(`role = $${i++}`); values.push(data.role); }
   if (data.active !== undefined) { fields.push(`active = $${i++}`); values.push(data.active); }
   if (data.password !== undefined) {
@@ -58,7 +58,7 @@ export const updateUser = asyncHandler(async (req, res) => {
 
   const { rows } = await query(
     `UPDATE users SET ${fields.join(", ")} WHERE id = $${i}
-       RETURNING id, name, email, role, active, created_at`,
+       RETURNING id, name, username, role, active, created_at`,
     values
   );
   if (!rows[0]) throw new ApiError(404, "Usuario nao encontrado.");

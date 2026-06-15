@@ -24,10 +24,10 @@ export const config = {
   // CORS — dominio do front (Railway/produção). Use * em dev.
   corsOrigin: process.env.CORS_ORIGIN ?? "*",
 
-  // Credenciais do primeiro admin criado no seed
-  seedAdminName: process.env.SEED_ADMIN_NAME ?? "Administrador",
-  seedAdminEmail: process.env.SEED_ADMIN_EMAIL ?? "admin@atacadao.local",
-  seedAdminPassword: process.env.SEED_ADMIN_PASSWORD ?? "admin123",
+  // Credenciais do login criado no seed (login unico)
+  seedAdminName: process.env.SEED_ADMIN_NAME ?? "Atacadao",
+  seedAdminUser: process.env.SEED_ADMIN_USER ?? "atacadao",
+  seedAdminPassword: process.env.SEED_ADMIN_PASSWORD ?? "atacadao123",
 };
 
 export const isProd = config.nodeEnv === "production";

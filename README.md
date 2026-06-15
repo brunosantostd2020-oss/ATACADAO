@@ -1,8 +1,7 @@
 # Atacadão Cervejaria — Sistema de Comandas
 
 SaaS de comandas com **back-end profissional** (Node.js + Express + PostgreSQL)
-e **front-end** (React + TanStack Start). Login com papéis: **admin**, **caixa**
-e **garçom**.
+e **front-end** (React + TanStack Start). Login simples: **usuário** e **senha** (acesso total ao sistema).
 
 ## Controle de pagamentos e cores
 
@@ -68,8 +67,8 @@ Edite o arquivo `server\.env` e preencha:
 ```
 DATABASE_URL=postgresql://postgres:SUA_SENHA@localhost:5432/atacadao
 JWT_SECRET=um-valor-bem-aleatorio-e-secreto
-SEED_ADMIN_EMAIL=admin@atacadao.local
-SEED_ADMIN_PASSWORD=troque123
+SEED_ADMIN_USER=atacadao
+SEED_ADMIN_PASSWORD=atacadao123
 ```
 
 Crie o banco (se ainda não existe) e rode migração + seed:
@@ -137,7 +136,7 @@ o serviço da **API** (pasta `server`) e o serviço do **front-end** (raiz).
    | `JWT_SECRET` | um valor longo e aleatório |
    | `JWT_EXPIRES_IN` | `12h` |
    | `CORS_ORIGIN` | a URL pública do front (preencha após o passo 3.3) |
-   | `SEED_ADMIN_EMAIL` | seu e-mail de admin |
+   | `SEED_ADMIN_USER` | seu usuario de login (ex: atacadao) |
    | `SEED_ADMIN_PASSWORD` | sua senha de admin |
    | `NODE_ENV` | `production` |
 

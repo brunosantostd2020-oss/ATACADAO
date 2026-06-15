@@ -16,13 +16,13 @@ const DEFAULT_PRODUCTS = [
 ];
 
 async function seed() {
-  console.log("[seed] Criando admin padrao...");
+  console.log("[seed] Criando login padrao...");
   const hash = await bcrypt.hash(config.seedAdminPassword, 10);
   await pool.query(
-    `INSERT INTO users (name, email, password_hash, role)
+    `INSERT INTO users (name, username, password_hash, role)
      VALUES ($1, $2, $3, 'admin')
-     ON CONFLICT (email) DO NOTHING`,
-    [config.seedAdminName, config.seedAdminEmail.toLowerCase(), hash]
+     ON CONFLICT (username) DO NOTHING`,
+    [config.seedAdminName, config.seedAdminUser.toLowerCase(), hash]
   );
 
   console.log("[seed] Inserindo produtos padrao...");
@@ -40,8 +40,8 @@ async function seed() {
   }
 
   console.log("\n[seed] Concluido!");
-  console.log(`  Login admin: ${config.seedAdminEmail}`);
-  console.log(`  Senha:       ${config.seedAdminPassword}`);
+  console.log(`  Usuario: ${config.seedAdminUser}`);
+  console.log(`  Senha:   ${config.seedAdminPassword}`);
   console.log("  (troque a senha apos o primeiro acesso)\n");
   await pool.end();
 }
