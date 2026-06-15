@@ -37,6 +37,8 @@ import {
   Printer,
   Package,
   TrendingUp,
+  Phone,
+  MessageCircle,
 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { toast } from "sonner";
@@ -56,6 +58,7 @@ import {
   stateBadge,
 } from "@/lib/api/comandaState";
 import { printKitchenTicket } from "@/lib/api/kitchenPrint";
+import { openWhatsapp } from "@/lib/api/whatsapp";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -91,13 +94,20 @@ function Dashboard() {
   const [newName, setNewName] = useState("");
   const [openComandaId, setOpenComandaId] = useState<string | null>(null);
   const [productsOpen, setProductsOpen] = useState(false);
-  const [newProd, setNewProd] = useState({ name: "", price: "" });
+  const [newProd, setNewProd] = useState({
+    name: "", price: "", category: "geral",
+    trackStock: false, stockQty: "", stockMin: "5",
+  });
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [editPrice, setEditPrice] = useState("");
   const [payMethod, setPayMethod] = useState("dinheiro");
   const [partialValue, setPartialValue] = useState("");
   const [printOpen, setPrintOpen] = useState(false);
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
   const [pendingProduct, setPendingProduct] = useState<Product | null>(null);
   const [pendingNotes, setPendingNotes] = useState("");
+  const [phoneDialogId, setPhoneDialogId] = useState<string | null>(null);
+  const [phoneInput, setPhoneInput] = useState("");
 
   // re-renderiza a cada 30s para atualizar os tempos ("45min" -> "46min")
   const [, setTick] = useState(0);
@@ -166,14 +176,47 @@ function Dashboard() {
     mutationFn: (id: string) => comandasApi.remove(id),
     onSuccess: () => { setOpenComandaId(null); refreshAll(); }, onError,
   });
+  const savePhone = useMutation({
+    mutationFn: ({ id, phone }: { id: string; phone: string }) =>
+      comandasApi.updatePhone(id, phone),
+    onSuccess: (data) => {
+      toast.success("Telefone salvo!");
+      setPhoneDialogId(null);
+      setPhoneInput("");
+      refreshAll();
+      // abre whatsapp com os dados atualizados da comanda
+      const c = list.find((x) => x.id === data.id);
+      if (c) openWhatsapp({ ...c, phone: data.phone });
+    },
+    onError,
+  });
   const createProduct = useMutation({
-    mutationFn: (p: { name: string; price_cents: number }) => productsApi.create(p),
-    onSuccess: () => { setNewProd({ name: "", price: "" }); qc.invalidateQueries({ queryKey: ["products"] }); },
+    mutationFn: (p: { name: string; price_cents: number; category?: string; track_stock?: boolean; stock_qty?: number; stock_min?: number }) =>
+      productsApi.create(p),
+    onSuccess: () => {
+      setNewProd({ name: "", price: "", category: "geral", trackStock: false, stockQty: "", stockMin: "5" });
+      qc.invalidateQueries({ queryKey: ["products"] });
+      qc.invalidateQueries({ queryKey: ["stock-panel"] });
+    },
+    onError,
+  });
+  const updateProduct = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: Partial<Product> }) =>
+      productsApi.update(id, data),
+    onSuccess: () => {
+      setEditingProduct(null);
+      qc.invalidateQueries({ queryKey: ["products"] });
+      qc.invalidateQueries({ queryKey: ["stock-panel"] });
+    },
     onError,
   });
   const removeProduct = useMutation({
     mutationFn: (id: string) => productsApi.remove(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["products"] }), onError,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["products"] });
+      qc.invalidateQueries({ queryKey: ["stock-panel"] });
+    },
+    onError,
   });
 
   const list = comandas.data ?? [];
@@ -205,7 +248,16 @@ function Dashboard() {
     const name = newProd.name.trim();
     const price = parseFloat(newProd.price.replace(",", "."));
     if (!name || isNaN(price) || price <= 0) { toast.error("Informe nome e preço válidos."); return; }
-    createProduct.mutate({ name, price_cents: Math.round(price * 100) });
+    const stock_qty = newProd.trackStock ? parseInt(newProd.stockQty || "0") : 0;
+    const stock_min = newProd.trackStock ? parseInt(newProd.stockMin || "5") : 5;
+    createProduct.mutate({
+      name,
+      price_cents: Math.round(price * 100),
+      category: newProd.category || "geral",
+      track_stock: newProd.trackStock,
+      stock_qty,
+      stock_min,
+    });
   };
 
   const doPartial = () => {
@@ -280,27 +332,116 @@ function Dashboard() {
                 <DialogTrigger asChild>
                   <Button variant="secondary" size="sm">Cardápio</Button>
                 </DialogTrigger>
-                <DialogContent className="max-w-lg">
+                <DialogContent className="max-w-lg w-[95vw] max-h-[90vh] overflow-hidden flex flex-col">
                   <DialogHeader><DialogTitle>Gerenciar Cardápio</DialogTitle></DialogHeader>
-                  <div className="space-y-3">
-                    <div className="flex gap-2">
-                      <Input placeholder="Nome do produto" value={newProd.name}
-                        onChange={(e) => setNewProd((p) => ({ ...p, name: e.target.value }))} />
-                      <Input placeholder="Preço" className="w-28" value={newProd.price}
-                        onChange={(e) => setNewProd((p) => ({ ...p, price: e.target.value }))}
-                        onKeyDown={(e) => e.key === "Enter" && addProduct()} />
-                      <Button onClick={addProduct} disabled={createProduct.isPending}><Plus className="size-4" /></Button>
-                    </div>
-                    <div className="max-h-80 overflow-auto divide-y divide-border rounded-md border border-border">
-                      {productList.map((p: Product) => (
-                        <div key={p.id} className="flex items-center justify-between px-3 py-2">
-                          <div>
-                            <div className="font-medium text-sm">{p.name}</div>
-                            <div className="text-xs text-muted-foreground">{fmt(p.price_cents)}</div>
+                  <div className="space-y-3 flex-1 overflow-hidden flex flex-col">
+                    {/* Novo produto */}
+                    <div className="space-y-2 p-3 rounded-lg border border-border bg-muted/20">
+                      <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Novo Produto</div>
+                      <div className="flex gap-2">
+                        <Input placeholder="Nome do produto" value={newProd.name}
+                          onChange={(e) => setNewProd((p) => ({ ...p, name: e.target.value }))}
+                          className="flex-1" />
+                        <Input placeholder="R$ preço" className="w-28" value={newProd.price}
+                          inputMode="decimal"
+                          onChange={(e) => setNewProd((p) => ({ ...p, price: e.target.value }))} />
+                      </div>
+                      <div className="flex gap-2 flex-wrap">
+                        <select
+                          className="flex-1 min-w-28 h-9 rounded-md border border-input bg-background px-3 text-sm"
+                          value={newProd.category}
+                          onChange={(e) => setNewProd((p) => ({ ...p, category: e.target.value }))}>
+                          <option value="cervejas">Cervejas</option>
+                          <option value="porcoes">Porções</option>
+                          <option value="bebidas">Bebidas</option>
+                          <option value="espetinhos">Espetinhos</option>
+                          <option value="geral">Geral</option>
+                        </select>
+                        <label className="flex items-center gap-1.5 cursor-pointer text-sm whitespace-nowrap h-9 px-2 rounded-md border border-input bg-background">
+                          <input type="checkbox" className="accent-primary"
+                            checked={newProd.trackStock}
+                            onChange={(e) => setNewProd((p) => ({ ...p, trackStock: e.target.checked }))} />
+                          Controlar estoque
+                        </label>
+                      </div>
+                      {newProd.trackStock && (
+                        <div className="flex gap-2">
+                          <div className="flex-1">
+                            <div className="text-xs text-muted-foreground mb-1">Quantidade inicial</div>
+                            <Input type="number" min="0" inputMode="numeric"
+                              placeholder="ex: 50" value={newProd.stockQty}
+                              onChange={(e) => setNewProd((p) => ({ ...p, stockQty: e.target.value }))} />
                           </div>
-                          <Button size="icon" variant="ghost" onClick={() => removeProduct.mutate(p.id)}>
-                            <Trash2 className="size-4 text-destructive" />
-                          </Button>
+                          <div className="flex-1">
+                            <div className="text-xs text-muted-foreground mb-1">Alerta abaixo de (un.)</div>
+                            <Input type="number" min="0" inputMode="numeric"
+                              placeholder="5" value={newProd.stockMin}
+                              onChange={(e) => setNewProd((p) => ({ ...p, stockMin: e.target.value }))} />
+                          </div>
+                        </div>
+                      )}
+                      <Button onClick={addProduct} disabled={createProduct.isPending} className="w-full">
+                        <Plus className="size-4 mr-1" /> Adicionar
+                      </Button>
+                    </div>
+
+                    {/* Lista */}
+                    <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground px-0.5">
+                      Cadastrados ({productList.length})
+                    </div>
+                    <div className="overflow-auto flex-1 divide-y divide-border rounded-md border border-border">
+                      {productList.map((p: Product) => (
+                        <div key={p.id} className="px-3 py-2.5">
+                          {editingProduct?.id === p.id ? (
+                            <div className="space-y-2">
+                              <Input defaultValue={editingProduct.name}
+                                onChange={(e) => setEditingProduct({ ...editingProduct, name: e.target.value })}
+                                className="text-sm" placeholder="Nome" />
+                              <div className="flex gap-2">
+                                <Input value={editPrice} inputMode="decimal"
+                                  onChange={(e) => setEditPrice(e.target.value)}
+                                  className="w-28 text-sm" placeholder="R$ preço" />
+                                <Button size="sm" className="flex-1" onClick={() => {
+                                  const price = parseFloat(editPrice.replace(",", "."));
+                                  if (!editingProduct.name?.trim() || isNaN(price) || price <= 0) { toast.error("Nome e preço obrigatórios."); return; }
+                                  updateProduct.mutate({ id: p.id, data: { name: editingProduct.name.trim(), price_cents: Math.round(price * 100) } });
+                                }}>Salvar</Button>
+                                <Button size="sm" variant="ghost" onClick={() => setEditingProduct(null)}>
+                                  <X className="size-3.5" />
+                                </Button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-2">
+                              <div className="flex-1 min-w-0">
+                                <div className="font-medium text-sm truncate">{p.name}</div>
+                                <div className="flex items-center gap-1.5 text-xs text-muted-foreground flex-wrap">
+                                  <span>{fmt(p.price_cents)}</span>
+                                  <span>·</span>
+                                  <span>{p.category}</span>
+                                  {p.track_stock && (
+                                    <span className={`font-semibold ${p.stock_qty === 0 ? "text-red-400" : p.stock_qty <= p.stock_min ? "text-amber-400" : "text-emerald-400"}`}>
+                                      · {p.stock_qty} un.
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              <button
+                                title={p.track_stock ? "Desativar estoque" : "Ativar estoque"}
+                                onClick={() => updateProduct.mutate({ id: p.id, data: { track_stock: !p.track_stock } })}
+                                className={`text-[10px] px-1.5 py-0.5 rounded border shrink-0 transition-colors ${p.track_stock ? "border-emerald-500/50 text-emerald-400 bg-emerald-500/10" : "border-border text-muted-foreground"}`}>
+                                {p.track_stock ? "📦 ON" : "📦 OFF"}
+                              </button>
+                              <Button size="icon" variant="ghost" className="size-7 shrink-0"
+                                onClick={() => { setEditingProduct(p); setEditPrice((p.price_cents / 100).toFixed(2).replace(".", ",")); }}>
+                                <span className="text-xs">✏️</span>
+                              </Button>
+                              <Button size="icon" variant="ghost" className="size-7 shrink-0"
+                                onClick={() => removeProduct.mutate(p.id)}>
+                                <Trash2 className="size-3.5 text-destructive" />
+                              </Button>
+                            </div>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -354,28 +495,83 @@ function Dashboard() {
               {devendo.map((c) => {
                 const st = comandaState(c);
                 const remaining = c.remaining_cents ?? c.total_cents;
+                const hasPhone = !!c.phone;
                 return (
-                  <button key={c.id} onClick={() => setOpenComandaId(c.id)}
-                    className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left hover:bg-muted/40 transition-colors">
-                    <div className="min-w-0">
-                      <div className="font-semibold flex items-center gap-2">
+                  <div key={c.id} className="flex items-center gap-2 px-3 py-3">
+                    {/* info — clica pra abrir a comanda */}
+                    <button onClick={() => setOpenComandaId(c.id)}
+                      className="flex-1 min-w-0 text-left">
+                      <div className="font-semibold flex items-center gap-2 flex-wrap">
                         {c.customer}
                         <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${stateBadge[st]}`}>
                           {stateLabel[st]}
                         </span>
                       </div>
-                      <div className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
+                      <div className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5 flex-wrap">
                         <Clock className="size-3" /> aberta há {elapsed(c.created_at)}
                         {c.status === "partial" && (
                           <span className="text-amber-400"> · já pagou {fmt(c.paid_cents ?? 0)}</span>
                         )}
+                        {hasPhone && (
+                          <span className="text-emerald-400 flex items-center gap-0.5">
+                            · <Phone className="size-2.5" /> {c.phone}
+                          </span>
+                        )}
                       </div>
-                    </div>
+                    </button>
+
+                    {/* valor */}
                     <div className="text-right shrink-0">
                       <div className="text-xs text-muted-foreground">falta</div>
-                      <div className="text-lg font-bold text-red-400">{fmt(remaining)}</div>
+                      <div className="text-base font-bold text-red-400">{fmt(remaining)}</div>
                     </div>
-                  </button>
+
+                    {/* botão WhatsApp */}
+                    {phoneDialogId === c.id ? (
+                      <div className="flex items-center gap-1 shrink-0">
+                        <input
+                          className="w-32 h-8 rounded-md border border-input bg-background px-2 text-sm"
+                          placeholder="DDD + número"
+                          value={phoneInput}
+                          inputMode="tel"
+                          onChange={(e) => setPhoneInput(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" && phoneInput.trim()) {
+                              savePhone.mutate({ id: c.id, phone: phoneInput.trim() });
+                            }
+                            if (e.key === "Escape") { setPhoneDialogId(null); setPhoneInput(""); }
+                          }}
+                          autoFocus
+                        />
+                        <button
+                          onClick={() => phoneInput.trim() && savePhone.mutate({ id: c.id, phone: phoneInput.trim() })}
+                          className="size-8 rounded-full bg-[#25D366] text-white grid place-items-center shrink-0"
+                          title="Salvar e enviar WhatsApp">
+                          <MessageCircle className="size-4" />
+                        </button>
+                        <button onClick={() => { setPhoneDialogId(null); setPhoneInput(""); }}
+                          className="size-7 rounded-full bg-muted grid place-items-center text-muted-foreground">
+                          <X className="size-3" />
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (hasPhone) {
+                            // ja tem telefone: busca os itens e abre wa direto
+                            comandasApi.get(c.id).then((full) => openWhatsapp(full));
+                          } else {
+                            setPhoneDialogId(c.id);
+                            setPhoneInput("");
+                          }
+                        }}
+                        className={`size-9 rounded-full grid place-items-center shrink-0 transition-colors ${hasPhone ? "bg-[#25D366] text-white hover:bg-[#20b558]" : "bg-muted text-muted-foreground hover:bg-[#25D366] hover:text-white"}`}
+                        title={hasPhone ? `Cobrar via WhatsApp (${c.phone})` : "Cadastrar telefone e cobrar via WhatsApp"}>
+                        <MessageCircle className="size-4" />
+                      </button>
+                    )}
+                  </div>
                 );
               })}
             </Card>

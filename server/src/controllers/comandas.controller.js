@@ -6,7 +6,7 @@ import { ApiError, asyncHandler } from "../utils/asyncHandler.js";
 async function loadComanda(id, client = null) {
   const q = (text, params) => (client ? client.query(text, params) : query(text, params));
   const { rows } = await q(
-    `SELECT id, customer, status, opened_by, paid_by, payment_method,
+    `SELECT id, customer, phone, status, opened_by, paid_by, payment_method,
             created_at, paid_at
        FROM comandas WHERE id = $1`,
     [id]
@@ -63,7 +63,7 @@ export const listComandas = asyncHandler(async (req, res) => {
   if (status) { where = "WHERE status = $1"; params.push(status); }
 
   const { rows } = await query(
-    `SELECT c.id, c.customer, c.status, c.payment_method, c.created_at, c.paid_at,
+    `SELECT c.id, c.customer, c.phone, c.status, c.payment_method, c.created_at, c.paid_at,
             COALESCE(i.total, 0)::int        AS total_cents,
             COALESCE(i.item_count, 0)::int   AS item_count,
             COALESCE(p.paid, 0)::int         AS paid_cents,
@@ -291,4 +291,16 @@ export const summary = asyncHandler(async (_req, res) => {
     paid_today_count: today[0].count,
     paid_today_cents: today[0].total_cents,
   });
+});
+
+// Salva ou atualiza o telefone do cliente na comanda
+export const updatePhone = asyncHandler(async (req, res) => {
+  const phone = (req.body.phone ?? "").toString().trim();
+  const { rows } = await query(
+    `UPDATE comandas SET phone = $1 WHERE id = $2
+       RETURNING id, customer, phone`,
+    [phone || null, req.params.id]
+  );
+  if (!rows[0]) throw new ApiError(404, "Comanda nao encontrada.");
+  res.json(rows[0]);
 });

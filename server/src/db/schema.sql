@@ -58,6 +58,7 @@ CREATE INDEX IF NOT EXISTS idx_stock_created ON stock_movements(created_at);
 CREATE TABLE IF NOT EXISTS comandas (
   id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   customer     TEXT          NOT NULL,
+  phone        TEXT,
   status       TEXT          NOT NULL DEFAULT 'open'
                CHECK (status IN ('open', 'partial', 'paid', 'canceled')),
   opened_by    UUID          REFERENCES users(id) ON DELETE SET NULL,
@@ -148,6 +149,10 @@ DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='comanda_items' AND column_name='notes') THEN
     ALTER TABLE comanda_items ADD COLUMN notes TEXT;
+  END IF;
+  -- adiciona phone em comandas se nao existir
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='comandas' AND column_name='phone') THEN
+    ALTER TABLE comandas ADD COLUMN phone TEXT;
   END IF;
 END $$;
 DO $$

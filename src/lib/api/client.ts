@@ -91,6 +91,7 @@ export type Payment = {
 export type Comanda = {
   id: string;
   customer: string;
+  phone?: string;
   status: "open" | "partial" | "paid" | "canceled";
   payment_method?: string;
   created_at: string;
@@ -161,6 +162,11 @@ export const comandasApi = {
     }),
   remove: (id: string) => api<void>(`/api/comandas/${id}`, { method: "DELETE" }),
   summary: () => api<Summary>("/api/comandas/summary"),
+  updatePhone: (id: string, phone: string) =>
+    api<{ id: string; customer: string; phone: string }>(`/api/comandas/${id}/phone`, {
+      method: "PATCH",
+      body: JSON.stringify({ phone }),
+    }),
 };
 
 // --- Reports API ---
