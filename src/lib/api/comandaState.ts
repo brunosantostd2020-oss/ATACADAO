@@ -1,7 +1,7 @@
 import type { Comanda } from "./client";
 
-// Limite (ms) para considerar uma comanda "esquecida" — 1 hora
-export const FORGOTTEN_MS = 60 * 60 * 1000;
+// Limite (ms) para comanda "esquecida" — 1 hora e meia
+export const FORGOTTEN_MS = 90 * 60 * 1000;
 
 export type ComandaState = "paid" | "partial" | "forgotten" | "open";
 
@@ -24,24 +24,28 @@ export function elapsed(fromIso: string): string {
   return m ? `${h}h${String(m).padStart(2, "0")}` : `${h}h`;
 }
 
-/** Classes de cor (borda/fundo) por estado, para os cards. */
+/** Classes de cor por estado — cards com fundo mais forte pro verde/vermelho */
 export const stateStyles: Record<ComandaState, string> = {
-  paid: "border-emerald-500/60 bg-emerald-500/5",
-  partial: "border-amber-500/70 bg-amber-500/10",
-  forgotten: "border-red-500/70 bg-red-500/10",
-  open: "border-border",
+  // Verde forte — quitada
+  paid:      "border-emerald-500 bg-emerald-500/20",
+  // Amarelo — pagou parte
+  partial:   "border-amber-500/70 bg-amber-500/10",
+  // Vermelho forte — esquecida (+1h30)
+  forgotten: "border-red-500 bg-red-500/20",
+  // Normal — aberta recente
+  open:      "border-border",
 };
 
 export const stateLabel: Record<ComandaState, string> = {
-  paid: "PAGA",
-  partial: "PARCIAL",
+  paid:      "PAGA",
+  partial:   "PARCIAL",
   forgotten: "ESQUECIDA",
-  open: "ABERTA",
+  open:      "ABERTA",
 };
 
 export const stateBadge: Record<ComandaState, string> = {
-  paid: "bg-emerald-500/20 text-emerald-400",
-  partial: "bg-amber-500/20 text-amber-400",
-  forgotten: "bg-red-500/20 text-red-400",
-  open: "bg-muted text-muted-foreground",
+  paid:      "bg-emerald-500/30 text-emerald-300 font-bold",
+  partial:   "bg-amber-500/20 text-amber-400",
+  forgotten: "bg-red-500/30 text-red-300 font-bold",
+  open:      "bg-muted text-muted-foreground",
 };

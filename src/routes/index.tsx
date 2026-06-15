@@ -34,6 +34,7 @@ import {
   Loader2,
   AlertTriangle,
   Clock,
+  Printer,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/api/auth";
@@ -51,6 +52,7 @@ import {
   stateLabel,
   stateBadge,
 } from "@/lib/api/comandaState";
+import { printKitchenTicket } from "@/lib/api/kitchenPrint";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -89,6 +91,8 @@ function Dashboard() {
   const [newProd, setNewProd] = useState({ name: "", price: "" });
   const [payMethod, setPayMethod] = useState("dinheiro");
   const [partialValue, setPartialValue] = useState("");
+  const [printOpen, setPrintOpen] = useState(false);
+  const [selectedItems, setSelectedItems] = useState<string[]>([]);
 
   // re-renderiza a cada 30s para atualizar os tempos ("45min" -> "46min")
   const [, setTick] = useState(0);
@@ -205,6 +209,32 @@ function Dashboard() {
     if (isNaN(v) || v <= 0) { toast.error("Informe um valor válido."); return; }
     pay.mutate({ id: detail.id, method: payMethod, amount: Math.round(v * 100) });
   };
+
+  const doPrintAll = () => {
+    if (!detail?.items?.length) return;
+    printKitchenTicket({
+      customer: detail.customer,
+      items: detail.items,
+      printedAt: new Date(),
+    });
+  };
+
+  const doPrintSelected = () => {
+    if (!detail?.items?.length || !selectedItems.length) return;
+    const items = detail.items.filter((i) => selectedItems.includes(i.id));
+    printKitchenTicket({
+      customer: detail.customer,
+      items,
+      printedAt: new Date(),
+    });
+    setSelectedItems([]);
+    setPrintOpen(false);
+  };
+
+  const toggleItem = (id: string) =>
+    setSelectedItems((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -495,6 +525,50 @@ function Dashboard() {
                     <div className="mt-2 text-xs flex justify-between text-muted-foreground">
                       <span>Já pago: <span className="text-emerald-400 font-semibold">{fmt(detail.paid_cents ?? 0)}</span></span>
                       <span>Falta: <span className="text-amber-400 font-semibold">{fmt(detail.remaining_cents ?? 0)}</span></span>
+                    </div>
+                  )}
+
+                  {/* IMPRIMIR COZINHA */}
+                  {(detail.items?.length ?? 0) > 0 && (
+                    <div className="mt-3 border border-border rounded-md p-3 space-y-2 bg-muted/20">
+                      <div className="text-xs uppercase tracking-wide text-muted-foreground flex items-center gap-1">
+                        <Printer className="size-3" /> Imprimir pra Cozinha
+                      </div>
+                      {!printOpen ? (
+                        <div className="flex gap-2">
+                          <Button size="sm" variant="outline" className="flex-1" onClick={doPrintAll}>
+                            <Printer className="size-3.5 mr-1" /> Tudo
+                          </Button>
+                          <Button size="sm" variant="outline" className="flex-1"
+                            onClick={() => { setPrintOpen(true); setSelectedItems([]); }}>
+                            <Printer className="size-3.5 mr-1" /> Escolher itens
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="space-y-1.5">
+                          <div className="text-xs text-muted-foreground">Marque o que quer imprimir:</div>
+                          {detail.items!.map((i) => (
+                            <label key={i.id}
+                              className={`flex items-center gap-2 px-2 py-1.5 rounded cursor-pointer transition-colors ${selectedItems.includes(i.id) ? "bg-primary/20 border border-primary/40" : "bg-secondary"}`}>
+                              <input type="checkbox" className="accent-primary"
+                                checked={selectedItems.includes(i.id)}
+                                onChange={() => toggleItem(i.id)} />
+                              <span className="text-sm font-medium flex-1">{i.name}</span>
+                              <span className="text-xs text-muted-foreground">{i.qty}x</span>
+                            </label>
+                          ))}
+                          <div className="flex gap-2 pt-1">
+                            <Button size="sm" variant="ghost" className="flex-1"
+                              onClick={() => { setPrintOpen(false); setSelectedItems([]); }}>
+                              Cancelar
+                            </Button>
+                            <Button size="sm" className="flex-1" disabled={!selectedItems.length}
+                              onClick={doPrintSelected}>
+                              <Printer className="size-3.5 mr-1" /> Imprimir {selectedItems.length > 0 ? `(${selectedItems.length})` : ""}
+                            </Button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
