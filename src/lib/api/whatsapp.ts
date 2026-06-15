@@ -65,7 +65,18 @@ export function whatsappCobrancaUrl(comanda: Comanda): string {
   return `https://wa.me/${fullPhone}?text=${encodeURIComponent(msg)}`;
 }
 
-/** Abre o WhatsApp diretamente */
+/** Abre o WhatsApp diretamente — usa deep link nativo no celular */
 export function openWhatsapp(comanda: Comanda) {
-  window.open(whatsappCobrancaUrl(comanda), "_blank");
+  const url = whatsappCobrancaUrl(comanda);
+  // No celular, tenta abrir o app nativo via deep link
+  const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+  if (isMobile) {
+    const phone = (comanda.phone ?? "").replace(/\D/g, "");
+    const fullPhone = phone.startsWith("55") ? phone : `55${phone}`;
+    const msg = new URL(url).searchParams.get("text") ?? "";
+    // Deep link nativo do WhatsApp — abre direto no app sem perguntar
+    window.location.href = `whatsapp://send?phone=${fullPhone}&text=${encodeURIComponent(msg)}`;
+  } else {
+    window.open(url, "_blank");
+  }
 }
