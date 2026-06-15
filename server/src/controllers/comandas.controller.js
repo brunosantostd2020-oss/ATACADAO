@@ -15,7 +15,7 @@ async function loadComanda(id, client = null) {
   const comanda = rows[0];
 
   const items = await q(
-    `SELECT id, product_id, name, price_cents, qty
+    `SELECT id, product_id, name, price_cents, qty, notes
        FROM comanda_items WHERE comanda_id = $1 ORDER BY created_at`,
     [id]
   );
@@ -42,6 +42,7 @@ const createSchema = z.object({
 const addItemSchema = z.object({
   product_id: z.string().uuid("Produto invalido."),
   qty: z.number().int().min(1).default(1),
+  notes: z.string().max(200).optional(),
 });
 
 const qtySchema = z.object({
@@ -101,7 +102,7 @@ export const createComanda = asyncHandler(async (req, res) => {
 });
 
 export const addItem = asyncHandler(async (req, res) => {
-  const { product_id, qty } = addItemSchema.parse(req.body);
+  const { product_id, qty, notes } = addItemSchema.parse(req.body);
   const comandaId = req.params.id;
 
   const comanda = await withTransaction(async (client) => {
@@ -120,11 +121,12 @@ export const addItem = asyncHandler(async (req, res) => {
 
     // upsert: se ja existe o produto na comanda, soma a quantidade
     await client.query(
-      `INSERT INTO comanda_items (comanda_id, product_id, name, price_cents, qty)
-         VALUES ($1, $2, $3, $4, $5)
+      `INSERT INTO comanda_items (comanda_id, product_id, name, price_cents, qty, notes)
+         VALUES ($1, $2, $3, $4, $5, $6)
        ON CONFLICT (comanda_id, product_id)
-         DO UPDATE SET qty = comanda_items.qty + EXCLUDED.qty`,
-      [comandaId, product_id, pRows[0].name, pRows[0].price_cents, qty]
+         DO UPDATE SET qty = comanda_items.qty + EXCLUDED.qty,
+                       notes = COALESCE(EXCLUDED.notes, comanda_items.notes)`,
+      [comandaId, product_id, pRows[0].name, pRows[0].price_cents, qty, notes ?? null]
     );
 
     // Desconta do estoque se o produto tiver controle ativo

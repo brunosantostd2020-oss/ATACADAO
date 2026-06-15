@@ -201,7 +201,7 @@ function StockDashboard() {
                   <Badge variant="outline" className={`text-[10px] shrink-0 ${statusBadge(p.stock_status)}`}>
                     {statusLabel(p.stock_status)}
                   </Badge>
-                  <div className="flex gap-1.5 shrink-0">
+                  <div className="flex gap-1 shrink-0 ml-auto">
                     <Button size="sm" variant="outline"
                       onClick={() => { setSelectedProduct(p); setEntryQty(""); setAdjustQty(""); setHistoryOpen(false); }}
                       title="Repor estoque">
@@ -239,7 +239,7 @@ function StockDashboard() {
                 <div className="space-y-2">
                   <div className="text-sm font-medium">Entrada (reposição)</div>
                   <div className="flex gap-2">
-                    <Input type="number" min="1" placeholder="Quantidade" value={entryQty}
+                    <Input type="number" min="1" inputMode="numeric" placeholder="Quantidade" value={entryQty}
                       onChange={(e) => setEntryQty(e.target.value)}
                       onKeyDown={(e) => e.key === "Enter" && entryQty && entry.mutate({ id: selectedProduct.id, qty: parseInt(entryQty) })} />
                     <Button disabled={!entryQty || entry.isPending}
@@ -252,7 +252,7 @@ function StockDashboard() {
                 <div className="space-y-2">
                   <div className="text-sm font-medium text-muted-foreground">Ajuste manual (inventário)</div>
                   <div className="flex gap-2">
-                    <Input type="number" min="0" placeholder="Quantidade total" value={adjustQty}
+                    <Input type="number" min="0" inputMode="numeric" placeholder="Qtd total" value={adjustQty}
                       onChange={(e) => setAdjustQty(e.target.value)} />
                     <Button variant="secondary" disabled={adjustQty === "" || adjust.isPending}
                       onClick={() => adjust.mutate({ id: selectedProduct.id, qty: parseInt(adjustQty) })}>

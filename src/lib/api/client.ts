@@ -80,6 +80,7 @@ export type ComandaItem = {
   name: string;
   price_cents: number;
   qty: number;
+  notes?: string;
 };
 export type Payment = {
   id: string;
@@ -139,10 +140,10 @@ export const comandasApi = {
   get: (id: string) => api<Comanda>(`/api/comandas/${id}`),
   create: (customer: string) =>
     api<Comanda>("/api/comandas", { method: "POST", body: JSON.stringify({ customer }) }),
-  addItem: (id: string, product_id: string, qty = 1) =>
+  addItem: (id: string, product_id: string, qty = 1, notes?: string) =>
     api<Comanda>(`/api/comandas/${id}/items`, {
       method: "POST",
-      body: JSON.stringify({ product_id, qty }),
+      body: JSON.stringify({ product_id, qty, notes }),
     }),
   setItemQty: (id: string, itemId: string, qty: number) =>
     api<Comanda>(`/api/comandas/${id}/items/${itemId}`, {
@@ -160,4 +161,32 @@ export const comandasApi = {
     }),
   remove: (id: string) => api<void>(`/api/comandas/${id}`, { method: "DELETE" }),
   summary: () => api<Summary>("/api/comandas/summary"),
+};
+
+// --- Reports API ---
+export type CaixaDiario = {
+  date: string;
+  total_recebido_cents: number;
+  qtd_pagamentos: number;
+  comandas_abertas: number;
+  restante_a_receber_cents: number;
+  pagamentos: { payment_method: string; qtd: number; total_cents: number }[];
+  produtos_mais_vendidos: { name: string; total_qty: number; total_cents: number }[];
+};
+
+export type RelatorioVendas = {
+  start: string;
+  end: string;
+  total_cents: number;
+  qtd_comandas: number;
+  por_dia: { dia: string; qtd_pagamentos: number; total_cents: number }[];
+  por_metodo: { payment_method: string; qtd: number; total_cents: number }[];
+  top_produtos: { name: string; total_qty: number; total_cents: number }[];
+};
+
+export const reportsApi = {
+  caixa: (date?: string) =>
+    api<CaixaDiario>(`/api/reports/caixa${date ? `?date=${date}` : ""}`),
+  vendas: (start?: string, end?: string) =>
+    api<RelatorioVendas>(`/api/reports/vendas${start ? `?start=${start}&end=${end ?? start}` : ""}`),
 };

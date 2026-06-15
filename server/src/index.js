@@ -10,6 +10,7 @@ import authRoutes from "./routes/auth.routes.js";
 import usersRoutes from "./routes/users.routes.js";
 import productsRoutes from "./routes/products.routes.js";
 import comandasRoutes from "./routes/comandas.routes.js";
+import reportsRoutes from "./routes/reports.routes.js";
 
 /**
  * Cria um Router Express com TODAS as rotas da API (/api/... e /health).
@@ -33,6 +34,7 @@ export function createApiRouter() {
   router.use("/api/users", usersRoutes);
   router.use("/api/products", productsRoutes);
   router.use("/api/comandas", comandasRoutes);
+  router.use("/api/reports", reportsRoutes);
 
   return router;
 }

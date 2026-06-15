@@ -36,6 +36,7 @@ import {
   Clock,
   Printer,
   Package,
+  TrendingUp,
 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { toast } from "sonner";
@@ -95,6 +96,8 @@ function Dashboard() {
   const [partialValue, setPartialValue] = useState("");
   const [printOpen, setPrintOpen] = useState(false);
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
+  const [pendingProduct, setPendingProduct] = useState<Product | null>(null);
+  const [pendingNotes, setPendingNotes] = useState("");
 
   // re-renderiza a cada 30s para atualizar os tempos ("45min" -> "46min")
   const [, setTick] = useState(0);
@@ -135,8 +138,8 @@ function Dashboard() {
     onError,
   });
   const addItem = useMutation({
-    mutationFn: ({ id, productId }: { id: string; productId: string }) =>
-      comandasApi.addItem(id, productId, 1),
+    mutationFn: ({ id, productId, notes }: { id: string; productId: string; notes?: string }) =>
+      comandasApi.addItem(id, productId, 1, notes),
     onSuccess: refreshAll, onError,
   });
   const setQty = useMutation({
@@ -251,11 +254,24 @@ function Dashboard() {
               <p className="text-xs text-muted-foreground mt-1">{user?.name} · {user?.role}</p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             {canManage && (
               <Link to="/estoque">
-                <Button variant="ghost" size="sm" title="Controle de Estoque">
-                  <Package className="size-4 mr-1" /> Estoque
+                <Button variant="ghost" size="sm" title="Controle de Estoque" className="hidden sm:flex">
+                  <Package className="size-4 sm:mr-1" /><span className="hidden sm:inline">Estoque</span>
+                </Button>
+                <Button variant="ghost" size="icon" title="Estoque" className="sm:hidden">
+                  <Package className="size-4" />
+                </Button>
+              </Link>
+            )}
+            {canManage && (
+              <Link to="/relatorios">
+                <Button variant="ghost" size="sm" title="Relatórios" className="hidden sm:flex">
+                  <TrendingUp className="size-4 sm:mr-1" /><span className="hidden sm:inline">Relatórios</span>
+                </Button>
+                <Button variant="ghost" size="icon" title="Relatórios" className="sm:hidden">
+                  <TrendingUp className="size-4" />
                 </Button>
               </Link>
             )}
@@ -466,49 +482,80 @@ function Dashboard() {
       </main>
 
       {/* DIALOG DA COMANDA */}
-      <Dialog open={!!openComandaId} onOpenChange={(o) => !o && setOpenComandaId(null)}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
+      <Dialog open={!!openComandaId} onOpenChange={(o) => { if (!o) { setOpenComandaId(null); setPendingProduct(null); setPendingNotes(""); setPrintOpen(false); } }}>
+        <DialogContent className="max-w-3xl w-[95vw] max-h-[92vh] overflow-hidden flex flex-col p-0">
           {detail && (
             <>
-              <DialogHeader>
-                <DialogTitle className="flex items-center justify-between gap-2">
-                  <span className="flex items-center gap-2">
-                    Comanda — <span className="text-primary">{detail.customer}</span>
-                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${stateBadge[comandaState(detail)]}`}>
+              <DialogHeader className="px-4 pt-4 pb-2 shrink-0">
+                <DialogTitle className="flex items-center justify-between gap-2 text-base">
+                  <span className="flex items-center gap-2 min-w-0">
+                    <span className="truncate">{detail.customer}</span>
+                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0 ${stateBadge[comandaState(detail)]}`}>
                       {stateLabel[comandaState(detail)]}
                     </span>
                   </span>
                   {user?.role === "admin" && (
-                    <Button size="icon" variant="ghost" onClick={() => removeComanda.mutate(detail.id)} title="Excluir comanda">
-                      <Trash2 className="size-4 text-destructive" />
+                    <Button size="icon" variant="ghost" className="shrink-0 size-7" onClick={() => removeComanda.mutate(detail.id)}>
+                      <Trash2 className="size-3.5 text-destructive" />
                     </Button>
                   )}
                 </DialogTitle>
               </DialogHeader>
 
-              <div className="grid md:grid-cols-2 gap-4 flex-1 overflow-hidden">
-                <div className="flex flex-col overflow-hidden">
-                  <div className="text-xs uppercase tracking-wide text-muted-foreground mb-2">Adicionar Produto</div>
+              <div className="flex flex-col md:grid md:grid-cols-2 gap-3 flex-1 overflow-hidden px-4">
+                {/* Produtos */}
+                <div className="flex flex-col min-h-0 max-h-48 md:max-h-none">
+                  <div className="text-xs uppercase tracking-wide text-muted-foreground mb-1.5">Adicionar Produto</div>
                   <div className="overflow-auto pr-1 space-y-1.5">
-                    {productList.map((p: Product) => (
-                      <button key={p.id} onClick={() => addItem.mutate({ id: detail.id, productId: p.id })}
-                        className={`w-full flex items-center justify-between gap-2 px-3 py-2 rounded-md bg-secondary hover:bg-primary hover:text-primary-foreground transition-colors text-left ${p.track_stock && p.stock_qty === 0 ? "opacity-50 cursor-not-allowed" : ""}`}
-                        disabled={p.track_stock && p.stock_qty === 0}>
-                        <span className="text-sm font-medium flex-1">{p.name}</span>
-                        {p.track_stock && (
-                          <span className={`text-[10px] px-1 rounded ${p.stock_qty === 0 ? "bg-red-500/20 text-red-400" : p.stock_qty <= p.stock_min ? "bg-amber-500/20 text-amber-400" : "text-muted-foreground"}`}>
-                            {p.stock_qty === 0 ? "ESGOTADO" : `${p.stock_qty} un.`}
-                          </span>
-                        )}
-                        <span className="text-sm font-semibold">{fmt(p.price_cents)}</span>
-                      </button>
-                    ))}
+                    {pendingProduct ? (
+                      <div className="space-y-2 p-2 rounded-md border border-primary/40 bg-primary/5">
+                        <div className="text-sm font-semibold">{pendingProduct.name}</div>
+                        <Input
+                          placeholder="Observação (ex: sem cebola)"
+                          value={pendingNotes}
+                          onChange={(e) => setPendingNotes(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              addItem.mutate({ id: detail.id, productId: pendingProduct.id, notes: pendingNotes || undefined });
+                              setPendingProduct(null); setPendingNotes("");
+                            }
+                            if (e.key === "Escape") { setPendingProduct(null); setPendingNotes(""); }
+                          }}
+                          autoFocus
+                          className="text-sm"
+                        />
+                        <div className="flex gap-2">
+                          <Button size="sm" className="flex-1" onClick={() => {
+                            addItem.mutate({ id: detail.id, productId: pendingProduct.id, notes: pendingNotes || undefined });
+                            setPendingProduct(null); setPendingNotes("");
+                          }}>Adicionar</Button>
+                          <Button size="sm" variant="ghost" onClick={() => { setPendingProduct(null); setPendingNotes(""); }}>
+                            <X className="size-3.5" />
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      productList.map((p: Product) => (
+                        <button key={p.id}
+                          onClick={() => { if (p.track_stock && p.stock_qty === 0) return; setPendingProduct(p); setPendingNotes(""); }}
+                          className={`w-full flex items-center justify-between gap-2 px-3 py-2 rounded-md bg-secondary hover:bg-primary hover:text-primary-foreground transition-colors text-left ${p.track_stock && p.stock_qty === 0 ? "opacity-40 cursor-not-allowed" : ""}`}
+                          disabled={p.track_stock && p.stock_qty === 0}>
+                          <span className="text-sm font-medium flex-1 truncate">{p.name}</span>
+                          {p.track_stock && (
+                            <span className={`text-[10px] px-1 rounded shrink-0 ${p.stock_qty === 0 ? "bg-red-500/20 text-red-400" : p.stock_qty <= p.stock_min ? "bg-amber-500/20 text-amber-400" : "text-muted-foreground"}`}>
+                              {p.stock_qty === 0 ? "SEM" : `${p.stock_qty}`}
+                            </span>
+                          )}
+                          <span className="text-sm font-semibold shrink-0">{fmt(p.price_cents)}</span>
+                        </button>
+                      ))
+                    )}
                   </div>
                 </div>
 
-                <div className="flex flex-col overflow-hidden">
-                  <div className="text-xs uppercase tracking-wide text-muted-foreground mb-2">Itens da Comanda</div>
-                  <div className="overflow-auto flex-1 border border-border rounded-md">
+                <div className="flex flex-col min-h-0 overflow-hidden">
+                  <div className="text-xs uppercase tracking-wide text-muted-foreground mb-1.5">Itens da Comanda</div>
+                  <div className="overflow-auto flex-1 border border-border rounded-md min-h-[120px] max-h-52 md:max-h-none">
                     {(detail.items?.length ?? 0) === 0 ? (
                       <div className="p-6 text-center text-sm text-muted-foreground">Nenhum item ainda.</div>
                     ) : (
@@ -517,6 +564,7 @@ function Dashboard() {
                           <div key={i.id} className="flex items-center gap-2 px-3 py-2">
                             <div className="flex-1 min-w-0">
                               <div className="text-sm font-medium truncate">{i.name}</div>
+                              {i.notes && <div className="text-xs text-amber-400 truncate">↳ {i.notes}</div>}
                               <div className="text-xs text-muted-foreground">{fmt(i.price_cents)} cada</div>
                             </div>
                             <div className="flex items-center gap-1">
@@ -589,7 +637,7 @@ function Dashboard() {
                 </div>
               </div>
 
-              <DialogFooter className="border-t border-border pt-4 flex flex-col gap-3">
+              <DialogFooter className="border-t border-border pt-3 pb-2 px-4 flex flex-col gap-2 shrink-0">
                 <div className="flex items-center justify-between w-full">
                   <div>
                     <div className="text-xs uppercase tracking-wide text-muted-foreground">
@@ -616,6 +664,7 @@ function Dashboard() {
                   <div className="flex flex-col sm:flex-row gap-2 w-full">
                     <div className="flex gap-2 flex-1">
                       <Input placeholder="Valor parcial (R$)" value={partialValue}
+                        inputMode="decimal"
                         onChange={(e) => setPartialValue(e.target.value)}
                         onKeyDown={(e) => e.key === "Enter" && doPartial()}
                         disabled={(detail.items?.length ?? 0) === 0} />

@@ -22,7 +22,10 @@ export function printKitchenTicket(ticket: KitchenTicket) {
       (item) => `
       <div class="item">
         <div class="item-qty">${item.qty}x</div>
-        <div class="item-name">${item.name}</div>
+        <div class="item-info">
+          <div class="item-name">${item.name}</div>
+          ${item.notes ? `<div class="item-notes">⚠ ${item.notes}</div>` : ""}
+        </div>
       </div>`
     )
     .join("");
@@ -90,10 +93,21 @@ export function printKitchenTicket(ticket: KitchenTicket) {
       text-align: right;
     }
 
+    .item-info { flex: 1; }
+
     .item-name {
       font-size: 15px;
       font-weight: bold;
-      flex: 1;
+    }
+
+    .item-notes {
+      font-size: 12px;
+      font-weight: bold;
+      background: #000;
+      color: #fff;
+      padding: 1px 4px;
+      margin-top: 2px;
+      display: inline-block;
     }
 
     .footer {

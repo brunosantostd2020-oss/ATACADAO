@@ -81,6 +81,7 @@ CREATE TABLE IF NOT EXISTS comanda_items (
   name        TEXT          NOT NULL,
   price_cents INTEGER       NOT NULL CHECK (price_cents >= 0),
   qty         INTEGER       NOT NULL DEFAULT 1 CHECK (qty > 0),
+  notes       TEXT,
   created_at  TIMESTAMPTZ   NOT NULL DEFAULT now()
 );
 
@@ -142,7 +143,13 @@ BEGIN
   END IF;
 END $$;
 
--- Migracao: adiciona colunas de estoque na tabela products se nao existirem
+-- Migracao: adiciona coluna notes em comanda_items se nao existir
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='comanda_items' AND column_name='notes') THEN
+    ALTER TABLE comanda_items ADD COLUMN notes TEXT;
+  END IF;
+END $$;
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='products' AND column_name='stock_qty') THEN
