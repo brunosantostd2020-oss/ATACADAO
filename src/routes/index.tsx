@@ -35,7 +35,9 @@ import {
   AlertTriangle,
   Clock,
   Printer,
+  Package,
 } from "lucide-react";
+import { Link } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { useAuth } from "@/lib/api/auth";
 import { LoginScreen } from "@/components/LoginScreen";
@@ -250,6 +252,13 @@ function Dashboard() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {canManage && (
+              <Link to="/estoque">
+                <Button variant="ghost" size="sm" title="Controle de Estoque">
+                  <Package className="size-4 mr-1" /> Estoque
+                </Button>
+              </Link>
+            )}
             {canManage && (
               <Dialog open={productsOpen} onOpenChange={setProductsOpen}>
                 <DialogTrigger asChild>
@@ -483,8 +492,14 @@ function Dashboard() {
                   <div className="overflow-auto pr-1 space-y-1.5">
                     {productList.map((p: Product) => (
                       <button key={p.id} onClick={() => addItem.mutate({ id: detail.id, productId: p.id })}
-                        className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-md bg-secondary hover:bg-primary hover:text-primary-foreground transition-colors text-left">
-                        <span className="text-sm font-medium">{p.name}</span>
+                        className={`w-full flex items-center justify-between gap-2 px-3 py-2 rounded-md bg-secondary hover:bg-primary hover:text-primary-foreground transition-colors text-left ${p.track_stock && p.stock_qty === 0 ? "opacity-50 cursor-not-allowed" : ""}`}
+                        disabled={p.track_stock && p.stock_qty === 0}>
+                        <span className="text-sm font-medium flex-1">{p.name}</span>
+                        {p.track_stock && (
+                          <span className={`text-[10px] px-1 rounded ${p.stock_qty === 0 ? "bg-red-500/20 text-red-400" : p.stock_qty <= p.stock_min ? "bg-amber-500/20 text-amber-400" : "text-muted-foreground"}`}>
+                            {p.stock_qty === 0 ? "ESGOTADO" : `${p.stock_qty} un.`}
+                          </span>
+                        )}
                         <span className="text-sm font-semibold">{fmt(p.price_cents)}</span>
                       </button>
                     ))}

@@ -113,7 +113,7 @@ export const addItem = asyncHandler(async (req, res) => {
     if (cRows[0].status !== "open") throw new ApiError(400, "Comanda nao esta aberta.");
 
     const { rows: pRows } = await client.query(
-      `SELECT name, price_cents, active FROM products WHERE id = $1`,
+      `SELECT name, price_cents, active, track_stock FROM products WHERE id = $1`,
       [product_id]
     );
     if (!pRows[0] || !pRows[0].active) throw new ApiError(404, "Produto indisponivel.");
@@ -126,6 +126,21 @@ export const addItem = asyncHandler(async (req, res) => {
          DO UPDATE SET qty = comanda_items.qty + EXCLUDED.qty`,
       [comandaId, product_id, pRows[0].name, pRows[0].price_cents, qty]
     );
+
+    // Desconta do estoque se o produto tiver controle ativo
+    if (pRows[0].track_stock) {
+      await client.query(
+        `UPDATE products
+            SET stock_qty = GREATEST(0, stock_qty - $1)
+          WHERE id = $2`,
+        [qty, product_id]
+      );
+      await client.query(
+        `INSERT INTO stock_movements (product_id, type, qty, reason)
+           VALUES ($1, 'saida', $2, 'Lancamento em comanda')`,
+        [product_id, -qty]
+      );
+    }
 
     return loadComanda(comandaId, client);
   });

@@ -25,14 +25,32 @@ CREATE TABLE IF NOT EXISTS users (
 -- PRODUTOS (cardapio)
 -- ---------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS products (
-  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name        TEXT          NOT NULL,
-  price_cents INTEGER       NOT NULL CHECK (price_cents >= 0),
-  category    TEXT          NOT NULL DEFAULT 'geral',
-  active      BOOLEAN       NOT NULL DEFAULT TRUE,
-  created_at  TIMESTAMPTZ   NOT NULL DEFAULT now(),
-  updated_at  TIMESTAMPTZ   NOT NULL DEFAULT now()
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name            TEXT          NOT NULL,
+  price_cents     INTEGER       NOT NULL CHECK (price_cents >= 0),
+  category        TEXT          NOT NULL DEFAULT 'geral',
+  active          BOOLEAN       NOT NULL DEFAULT TRUE,
+  -- Controle de estoque
+  stock_qty       INTEGER       NOT NULL DEFAULT 0 CHECK (stock_qty >= 0),
+  stock_min       INTEGER       NOT NULL DEFAULT 5,  -- alerta abaixo desse valor
+  track_stock     BOOLEAN       NOT NULL DEFAULT FALSE, -- se FALSE ignora estoque
+  created_at      TIMESTAMPTZ   NOT NULL DEFAULT now(),
+  updated_at      TIMESTAMPTZ   NOT NULL DEFAULT now()
 );
+
+-- Historico de movimentacoes de estoque (entradas e saidas)
+CREATE TABLE IF NOT EXISTS stock_movements (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  product_id  UUID        NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+  type        TEXT        NOT NULL CHECK (type IN ('entrada', 'saida', 'ajuste')),
+  qty         INTEGER     NOT NULL,  -- positivo = entrada, negativo = saida
+  reason      TEXT,                  -- ex: "Compra", "Comanda #123", "Ajuste manual"
+  created_by  UUID        REFERENCES users(id) ON DELETE SET NULL,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_stock_product ON stock_movements(product_id);
+CREATE INDEX IF NOT EXISTS idx_stock_created ON stock_movements(created_at);
 
 -- ---------------------------------------------------------------------
 -- COMANDAS
@@ -121,6 +139,16 @@ BEGIN
     WHERE table_name = 'users' AND column_name = 'email' AND is_nullable = 'NO'
   ) THEN
     ALTER TABLE users ALTER COLUMN email DROP NOT NULL;
+  END IF;
+END $$;
+
+-- Migracao: adiciona colunas de estoque na tabela products se nao existirem
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='products' AND column_name='stock_qty') THEN
+    ALTER TABLE products ADD COLUMN stock_qty   INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE products ADD COLUMN stock_min   INTEGER NOT NULL DEFAULT 5;
+    ALTER TABLE products ADD COLUMN track_stock BOOLEAN NOT NULL DEFAULT FALSE;
   END IF;
 END $$;
 

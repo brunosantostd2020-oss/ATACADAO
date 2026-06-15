@@ -58,6 +58,21 @@ export type Product = {
   price_cents: number;
   category: string;
   active: boolean;
+  track_stock: boolean;
+  stock_qty: number;
+  stock_min: number;
+  low_stock?: boolean;
+};
+
+export type StockStatus = "ok" | "baixo" | "esgotado";
+export type StockProduct = Product & { stock_status: StockStatus };
+export type StockMovement = {
+  id: string;
+  type: "entrada" | "saida" | "ajuste";
+  qty: number;
+  reason: string;
+  user_name?: string;
+  created_at: string;
 };
 export type ComandaItem = {
   id: string;
@@ -105,9 +120,17 @@ export const authApi = {
 
 export const productsApi = {
   list: () => api<Product[]>("/api/products"),
-  create: (p: { name: string; price_cents: number; category?: string }) =>
+  create: (p: { name: string; price_cents: number; category?: string; track_stock?: boolean; stock_qty?: number; stock_min?: number }) =>
     api<Product>("/api/products", { method: "POST", body: JSON.stringify(p) }),
+  update: (id: string, p: Partial<Product>) =>
+    api<Product>(`/api/products/${id}`, { method: "PATCH", body: JSON.stringify(p) }),
   remove: (id: string) => api<void>(`/api/products/${id}`, { method: "DELETE" }),
+  stockPanel: () => api<StockProduct[]>("/api/products/stock"),
+  stockEntry: (id: string, qty: number, reason?: string) =>
+    api<Product>(`/api/products/${id}/stock/entry`, { method: "POST", body: JSON.stringify({ qty, reason }) }),
+  stockAdjust: (id: string, qty: number, reason?: string) =>
+    api<Product>(`/api/products/${id}/stock/adjust`, { method: "POST", body: JSON.stringify({ qty, reason }) }),
+  stockHistory: (id: string) => api<StockMovement[]>(`/api/products/${id}/stock/history`),
 };
 
 export const comandasApi = {
