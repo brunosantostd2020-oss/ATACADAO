@@ -36,7 +36,9 @@ async function loadComanda(id, client = null) {
 
 // ---------- schemas ----------
 const createSchema = z.object({
-  customer: z.string().min(1, "Nome do cliente obrigatorio."),
+  customer:    z.string().min(1, "Nome do cliente obrigatorio."),
+  customer_id: z.string().uuid().optional(),
+  phone:       z.string().optional(),
 });
 
 const addItemSchema = z.object({
@@ -91,12 +93,29 @@ export const getComanda = asyncHandler(async (req, res) => {
 });
 
 export const createComanda = asyncHandler(async (req, res) => {
-  const { customer } = createSchema.parse(req.body);
+  const { customer, customer_id, phone } = createSchema.parse(req.body);
+
+  // Busca telefone do cadastro se nao veio no body
+  let resolvedPhone = phone ?? null;
+  if (!resolvedPhone && customer_id) {
+    const { rows: cr } = await query("SELECT phone FROM customers WHERE id=$1", [customer_id]);
+    if (cr[0]?.phone) resolvedPhone = cr[0].phone;
+  }
+
   const { rows } = await query(
-    `INSERT INTO comandas (customer, opened_by) VALUES ($1, $2)
-       RETURNING id`,
-    [customer, req.user.id]
+    `INSERT INTO comandas (customer, customer_id, phone, opened_by)
+       VALUES ($1, $2, $3, $4) RETURNING id`,
+    [customer, customer_id ?? null, resolvedPhone, req.user.id]
   );
+
+  // Atualiza contador e ultima visita no cadastro
+  if (customer_id) {
+    await query(
+      `UPDATE customers SET visit_count = visit_count + 1, last_visit = now() WHERE id = $1`,
+      [customer_id]
+    );
+  }
+
   const comanda = await loadComanda(rows[0].id);
   res.status(201).json(comanda);
 });

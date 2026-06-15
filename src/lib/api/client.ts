@@ -139,8 +139,11 @@ export const comandasApi = {
   list: (status?: string) =>
     api<Comanda[]>(`/api/comandas${status ? `?status=${status}` : ""}`),
   get: (id: string) => api<Comanda>(`/api/comandas/${id}`),
-  create: (customer: string) =>
-    api<Comanda>("/api/comandas", { method: "POST", body: JSON.stringify({ customer }) }),
+  create: (customer: string, customer_id?: string, phone?: string) =>
+    api<Comanda>("/api/comandas", {
+      method: "POST",
+      body: JSON.stringify({ customer, customer_id, phone }),
+    }),
   addItem: (id: string, product_id: string, qty = 1, notes?: string) =>
     api<Comanda>(`/api/comandas/${id}/items`, {
       method: "POST",
@@ -195,4 +198,28 @@ export const reportsApi = {
     api<CaixaDiario>(`/api/reports/caixa${date ? `?date=${date}` : ""}`),
   vendas: (start?: string, end?: string) =>
     api<RelatorioVendas>(`/api/reports/vendas${start ? `?start=${start}&end=${end ?? start}` : ""}`),
+};
+
+// --- Customers API ---
+export type Customer = {
+  id: string;
+  name: string;
+  phone?: string;
+  notes?: string;
+  visit_count: number;
+  last_visit?: string;
+  created_at: string;
+  total_comandas?: number;
+  total_devendo_cents?: number;
+};
+
+export const customersApi = {
+  search: (q: string) => api<Customer[]>(`/api/customers/search?q=${encodeURIComponent(q)}`),
+  list:   () => api<Customer[]>("/api/customers"),
+  create: (data: { name: string; phone?: string; notes?: string }) =>
+    api<Customer>("/api/customers", { method: "POST", body: JSON.stringify(data) }),
+  update: (id: string, data: Partial<Customer>) =>
+    api<Customer>(`/api/customers/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
+  remove: (id: string) => api<void>(`/api/customers/${id}`, { method: "DELETE" }),
+  history: (id: string) => api<Comanda[]>(`/api/customers/${id}/history`),
 };

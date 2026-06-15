@@ -91,8 +91,23 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_item_comanda_product
   ON comanda_items(comanda_id, product_id);
 
 -- ---------------------------------------------------------------------
--- PAGAMENTOS (suporta pagamento parcial: varios pagamentos por comanda)
+-- CLIENTES (cadastro para autocomplete e historico)
 -- ---------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS customers (
+  id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name       TEXT        NOT NULL,
+  phone      TEXT,
+  notes      TEXT,
+  visit_count INTEGER    NOT NULL DEFAULT 0,
+  last_visit  TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_customers_name ON customers(lower(name));
+DROP TRIGGER IF EXISTS trg_customers_updated ON customers;
+CREATE TRIGGER trg_customers_updated BEFORE UPDATE ON customers
+  FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 CREATE TABLE IF NOT EXISTS payments (
   id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   comanda_id     UUID        NOT NULL REFERENCES comandas(id) ON DELETE CASCADE,
@@ -153,6 +168,10 @@ BEGIN
   -- adiciona phone em comandas se nao existir
   IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='comandas' AND column_name='phone') THEN
     ALTER TABLE comandas ADD COLUMN phone TEXT;
+  END IF;
+  -- adiciona customer_id em comandas se nao existir
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='comandas' AND column_name='customer_id') THEN
+    ALTER TABLE comandas ADD COLUMN customer_id UUID REFERENCES customers(id) ON DELETE SET NULL;
   END IF;
 END $$;
 DO $$

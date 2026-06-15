@@ -24,21 +24,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  Beer,
-  Plus,
-  Trash2,
-  CheckCircle2,
-  Receipt,
-  X,
-  LogOut,
-  Loader2,
-  AlertTriangle,
-  Clock,
-  Printer,
-  Package,
-  TrendingUp,
-  Phone,
-  MessageCircle,
+  Beer, Plus, Trash2, CheckCircle2, Receipt, X, LogOut, Loader2,
+  AlertTriangle, Clock, Printer, Package, TrendingUp, Phone,
+  MessageCircle, Users,
 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { toast } from "sonner";
@@ -59,6 +47,7 @@ import {
 } from "@/lib/api/comandaState";
 import { printKitchenTicket } from "@/lib/api/kitchenPrint";
 import { openWhatsapp } from "@/lib/api/whatsapp";
+import { customersApi, type Customer } from "@/lib/api/client";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -92,6 +81,9 @@ function Dashboard() {
   const canManage = user?.role === "admin" || user?.role === "caixa";
 
   const [newName, setNewName] = useState("");
+  const [customerSuggestions, setCustomerSuggestions] = useState<Customer[]>([]);
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [showSuggestions, setShowSuggestions] = useState(false);
   const [openComandaId, setOpenComandaId] = useState<string | null>(null);
   const [productsOpen, setProductsOpen] = useState(false);
   const [newProd, setNewProd] = useState({
@@ -143,8 +135,15 @@ function Dashboard() {
     toast.error(e instanceof Error ? e.message : "Ocorreu um erro.");
 
   const createComanda = useMutation({
-    mutationFn: (customer: string) => comandasApi.create(customer),
-    onSuccess: (c) => { setNewName(""); setOpenComandaId(c.id); refreshAll(); },
+    mutationFn: (customer: string) =>
+      comandasApi.create(customer, selectedCustomer?.id, selectedCustomer?.phone ?? undefined),
+    onSuccess: (c) => {
+      setNewName("");
+      setSelectedCustomer(null);
+      setCustomerSuggestions([]);
+      setOpenComandaId(c.id);
+      refreshAll();
+    },
     onError,
   });
   const addItem = useMutation({
@@ -260,6 +259,28 @@ function Dashboard() {
     });
   };
 
+  const handleNameChange = async (value: string) => {
+    setNewName(value);
+    setSelectedCustomer(null);
+    if (value.trim().length >= 1) {
+      try {
+        const results = await customersApi.search(value.trim());
+        setCustomerSuggestions(results);
+        setShowSuggestions(results.length > 0);
+      } catch { setCustomerSuggestions([]); }
+    } else {
+      setCustomerSuggestions([]);
+      setShowSuggestions(false);
+    }
+  };
+
+  const selectCustomer = (c: Customer) => {
+    setNewName(c.name);
+    setSelectedCustomer(c);
+    setCustomerSuggestions([]);
+    setShowSuggestions(false);
+  };
+
   const doPartial = () => {
     if (!detail) return;
     const v = parseFloat(partialValue.replace(",", "."));
@@ -307,6 +328,16 @@ function Dashboard() {
             </div>
           </div>
           <div className="flex items-center gap-1.5">
+            {canManage && (
+              <Link to="/clientes">
+                <Button variant="ghost" size="sm" title="Clientes" className="hidden sm:flex">
+                  <Users className="size-4 sm:mr-1" /><span className="hidden sm:inline">Clientes</span>
+                </Button>
+                <Button variant="ghost" size="icon" title="Clientes" className="sm:hidden">
+                  <Users className="size-4" />
+                </Button>
+              </Link>
+            )}
             {canManage && (
               <Link to="/estoque">
                 <Button variant="ghost" size="sm" title="Controle de Estoque" className="hidden sm:flex">
@@ -664,15 +695,67 @@ function Dashboard() {
 
         {/* NOVA COMANDA */}
         <Card className="p-4">
-          <div className="flex flex-col sm:flex-row gap-2">
-            <Input placeholder="Nome do cliente para nova comanda..." value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && newName.trim() && createComanda.mutate(newName.trim())}
-              className="flex-1" />
-            <Button onClick={() => newName.trim() && createComanda.mutate(newName.trim())}
-              size="lg" disabled={createComanda.isPending}>
-              <Plus className="size-4 mr-1" /> Nova Comanda
-            </Button>
+          <div className="space-y-2">
+            <div className="relative flex flex-col sm:flex-row gap-2">
+              <div className="relative flex-1">
+                <Input
+                  placeholder="Nome do cliente para nova comanda..."
+                  value={newName}
+                  onChange={(e) => handleNameChange(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && newName.trim()) {
+                      setShowSuggestions(false);
+                      createComanda.mutate(newName.trim());
+                    }
+                    if (e.key === "Escape") setShowSuggestions(false);
+                  }}
+                  onFocus={() => customerSuggestions.length > 0 && setShowSuggestions(true)}
+                  onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+                  className="w-full"
+                />
+                {/* Autocomplete dropdown */}
+                {showSuggestions && customerSuggestions.length > 0 && (
+                  <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-card border border-border rounded-md shadow-lg overflow-hidden">
+                    {customerSuggestions.map((c) => (
+                      <button
+                        key={c.id}
+                        onMouseDown={() => selectCustomer(c)}
+                        className="w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-muted transition-colors border-b border-border last:border-0">
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium text-sm">{c.name}</div>
+                          <div className="text-xs text-muted-foreground flex items-center gap-2">
+                            {c.phone && <span className="flex items-center gap-1"><Phone className="size-2.5" />{c.phone}</span>}
+                            {c.notes && <span className="truncate max-w-32">{c.notes}</span>}
+                            <span>{c.visit_count} visita{c.visit_count !== 1 ? "s" : ""}</span>
+                          </div>
+                        </div>
+                        {(selectedCustomer?.id === c.id) && (
+                          <span className="text-emerald-400 text-xs">✓</span>
+                        )}
+                      </button>
+                    ))}
+                    <div className="px-3 py-1.5 text-xs text-muted-foreground bg-muted/50">
+                      Pressione Enter para criar comanda com nome novo
+                    </div>
+                  </div>
+                )}
+              </div>
+              <Button
+                onClick={() => { setShowSuggestions(false); newName.trim() && createComanda.mutate(newName.trim()); }}
+                size="lg" disabled={createComanda.isPending}>
+                <Plus className="size-4 mr-1" /> Nova Comanda
+              </Button>
+            </div>
+            {selectedCustomer && (
+              <div className="flex items-center gap-2 text-xs bg-emerald-500/10 border border-emerald-500/30 rounded-md px-3 py-1.5">
+                <span className="text-emerald-400 font-semibold">✓ Cliente: {selectedCustomer.name}</span>
+                {selectedCustomer.phone && <span className="text-muted-foreground">· {selectedCustomer.phone}</span>}
+                {selectedCustomer.notes && <span className="text-muted-foreground">· {selectedCustomer.notes}</span>}
+                <button onClick={() => { setSelectedCustomer(null); setNewName(""); }} className="ml-auto text-muted-foreground hover:text-foreground">
+                  <X className="size-3" />
+                </button>
+              </div>
+            )}
           </div>
         </Card>
       </main>
