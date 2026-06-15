@@ -85,6 +85,46 @@ CREATE TABLE IF NOT EXISTS payments (
 CREATE INDEX IF NOT EXISTS idx_payments_comanda ON payments(comanda_id);
 
 -- ---------------------------------------------------------------------
+-- MIGRACAO SEGURA: se o banco ja existia da versao antiga (com coluna
+-- "email"), adiciona "username" sem perder dados. Roda sempre, idempotente.
+-- ---------------------------------------------------------------------
+DO $$
+BEGIN
+  -- adiciona a coluna username se ainda nao existir
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'users' AND column_name = 'username'
+  ) THEN
+    ALTER TABLE users ADD COLUMN username TEXT;
+    -- preenche username a partir do email antigo (parte antes do @),
+    -- ou de um valor unico, para nao quebrar a constraint
+    IF EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_name = 'users' AND column_name = 'email'
+    ) THEN
+      UPDATE users SET username = split_part(email, '@', 1) WHERE username IS NULL;
+    END IF;
+    UPDATE users SET username = 'user_' || left(id::text, 8) WHERE username IS NULL OR username = '';
+    ALTER TABLE users ALTER COLUMN username SET NOT NULL;
+    -- cria indice unico se ainda nao houver
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_indexes WHERE tablename = 'users' AND indexname = 'users_username_key'
+    ) THEN
+      ALTER TABLE users ADD CONSTRAINT users_username_key UNIQUE (username);
+    END IF;
+  END IF;
+
+  -- Se ainda existe a coluna antiga "email" como NOT NULL, torna opcional
+  -- para nao bloquear a criacao de novos usuarios (que usam so username).
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'users' AND column_name = 'email' AND is_nullable = 'NO'
+  ) THEN
+    ALTER TABLE users ALTER COLUMN email DROP NOT NULL;
+  END IF;
+END $$;
+
+-- ---------------------------------------------------------------------
 -- Trigger para manter updated_at sempre atualizado
 -- ---------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION set_updated_at()

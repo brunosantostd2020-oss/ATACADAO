@@ -50,14 +50,19 @@ async function bootstrap() {
   console.log("[bootstrap] Aplicando schema...");
   await pool.query(sql);
 
-  // 2) Login padrao
+  // 2) Login padrao — garante que SEMPRE exista com a senha definida.
+  // Se o usuario ja existe, atualiza a senha/role (evita ficar trancado fora).
   const hash = await bcrypt.hash(config.seedAdminPassword, 10);
   await pool.query(
     `INSERT INTO users (name, username, password_hash, role)
        VALUES ($1, $2, $3, 'admin')
-     ON CONFLICT (username) DO NOTHING`,
+     ON CONFLICT (username)
+       DO UPDATE SET password_hash = EXCLUDED.password_hash,
+                     role = 'admin',
+                     active = TRUE`,
     [config.seedAdminName, config.seedAdminUser.toLowerCase(), hash]
   );
+  console.log(`[bootstrap] Login garantido: usuario "${config.seedAdminUser}".`);
 
   // 3) Produtos padrao (so se a tabela estiver vazia)
   const { rows } = await pool.query("SELECT COUNT(*)::int AS n FROM products");
