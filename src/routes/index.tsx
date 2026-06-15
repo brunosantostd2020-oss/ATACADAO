@@ -559,31 +559,33 @@ function Dashboard() {
 
                     {/* botão WhatsApp */}
                     {phoneDialogId === c.id ? (
-                      <div className="flex items-center gap-1 shrink-0">
-                        <input
-                          className="w-32 h-8 rounded-md border border-input bg-background px-2 text-sm"
-                          placeholder="DDD + número"
-                          value={phoneInput}
-                          inputMode="tel"
-                          onChange={(e) => setPhoneInput(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter" && phoneInput.trim()) {
-                              savePhone.mutate({ id: c.id, phone: phoneInput.trim() });
-                            }
-                            if (e.key === "Escape") { setPhoneDialogId(null); setPhoneInput(""); }
-                          }}
-                          autoFocus
-                        />
-                        <button
-                          onClick={() => phoneInput.trim() && savePhone.mutate({ id: c.id, phone: phoneInput.trim() })}
-                          className="size-8 rounded-full bg-[#25D366] text-white grid place-items-center shrink-0"
-                          title="Salvar e enviar WhatsApp">
-                          <MessageCircle className="size-4" />
-                        </button>
-                        <button onClick={() => { setPhoneDialogId(null); setPhoneInput(""); }}
-                          className="size-7 rounded-full bg-muted grid place-items-center text-muted-foreground">
-                          <X className="size-3" />
-                        </button>
+                      <div className="flex flex-col xs:flex-row items-stretch xs:items-center gap-1 shrink-0 w-full xs:w-auto mt-1 xs:mt-0">
+                        <div className="flex items-center gap-1">
+                          <input
+                            className="flex-1 xs:w-32 h-8 rounded-md border border-input bg-background px-2 text-sm"
+                            placeholder="DDD + número"
+                            value={phoneInput}
+                            inputMode="tel"
+                            onChange={(e) => setPhoneInput(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" && phoneInput.trim()) {
+                                savePhone.mutate({ id: c.id, phone: phoneInput.trim() });
+                              }
+                              if (e.key === "Escape") { setPhoneDialogId(null); setPhoneInput(""); }
+                            }}
+                            autoFocus
+                          />
+                          <button
+                            onClick={() => phoneInput.trim() && savePhone.mutate({ id: c.id, phone: phoneInput.trim() })}
+                            className="size-8 rounded-full bg-[#25D366] text-white grid place-items-center shrink-0"
+                            title="Salvar e enviar WhatsApp">
+                            <MessageCircle className="size-4" />
+                          </button>
+                          <button onClick={() => { setPhoneDialogId(null); setPhoneInput(""); }}
+                            className="size-7 rounded-full bg-muted grid place-items-center text-muted-foreground">
+                            <X className="size-3" />
+                          </button>
+                        </div>
                       </div>
                     ) : (
                       <button
